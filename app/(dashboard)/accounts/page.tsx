@@ -1,190 +1,236 @@
 "use client";
 
-import Link from "next/link";
 import {
-  BarChart3,
-  CalendarDays,
+  CalendarClock,
+  ChevronLeft,
   ChevronRight,
-  Search,
-  TrendingDown,
-  TrendingUp,
   Loader2,
+  MoreHorizontal,
+  Search,
+  ShieldBan,
+  ShieldCheck,
+  X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+
+import {
+  useEffect,
+  useState,
+} from "react";
 
 import PageHeader from "@/components/ui/PageHeader";
-import StatCard from "@/components/ui/StatCard";
 
 import {
-  getAccountReports,
-  type AccountReportResponse,
-} from "@/services/report.service";
-
-
-// =========================================================
-// DEFAULT
-// =========================================================
-
-const DEFAULT_FROM = "2026-08-01";
-const DEFAULT_TO = "2026-08-24";
-
-
-// =========================================================
-// MONEY
-// =========================================================
-
-function money(value: number | null | undefined) {
-  return `$${Number(value || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
+  getAccounts,
+  blockAccount,
+  unblockAccount,
+  renewAccount,
+  type AccountListResponse,
+} from "@/services/account.service";
 
 
 // =========================================================
 // PAGE
 // =========================================================
 
-export default function ReportsPage() {
-
-  console.log("REPORTS PAGE RENDER");
-
-
-  // =======================================================
-  // FILTER
-  // =======================================================
-
-  const [accountFilter, setAccountFilter] = useState("");
-
-  const [from, setFrom] = useState(DEFAULT_FROM);
-
-  const [to, setTo] = useState(DEFAULT_TO);
-
-
-  // =======================================================
-  // FILTER ĐÃ THỰC HIỆN SEARCH
-  // =======================================================
-
-  const [searchedAccount, setSearchedAccount] = useState("");
-
-  const [searchedFrom, setSearchedFrom] =
-    useState(DEFAULT_FROM);
-
-  const [searchedTo, setSearchedTo] =
-    useState(DEFAULT_TO);
-
+export default function AccountsPage() {
 
   // =======================================================
   // DATA
   // =======================================================
 
-  const [rows, setRows] =
-    useState<AccountReportResponse[]>([]);
+  const [
+    accounts,
+    setAccounts
+  ] = useState<AccountListResponse[]>([]);
 
 
   // =======================================================
   // PAGINATION
   // =======================================================
 
-  const [page, setPage] = useState(0);
+  const [
+    page,
+    setPage
+  ] = useState(0);
 
-  const [size] = useState(10);
+  const [
+    size,
+    setSize
+  ] = useState(10);
 
-  const [totalPages, setTotalPages] = useState(0);
+  const [
+    totalPages,
+    setTotalPages
+  ] = useState(0);
 
-  const [totalElements, setTotalElements] = useState(0);
+  const [
+    totalElements,
+    setTotalElements
+  ] = useState(0);
+
+
+  // =======================================================
+  // SEARCH
+  // =======================================================
+
+  const [
+    query,
+    setQuery
+  ] = useState("");
+
+  const [
+    searchKeyword,
+    setSearchKeyword
+  ] = useState("");
 
 
   // =======================================================
   // LOADING
   // =======================================================
 
-  const [loading, setLoading] = useState(false);
+  const [
+    loading,
+    setLoading
+  ] = useState(false);
 
 
   // =======================================================
   // ERROR
   // =======================================================
 
-  const [error, setError] = useState("");
+  const [
+    error,
+    setError
+  ] = useState("");
 
 
   // =======================================================
-  // LOAD REPORT
+  // SELECTED ACCOUNT
   // =======================================================
 
-  async function loadReports(
+  const [
+    selected,
+    setSelected
+  ] = useState<AccountListResponse | null>(
+    null
+  );
+
+
+  // =======================================================
+  // MODAL
+  // =======================================================
+
+  const [
+    modal,
+    setModal
+  ] = useState<
+    "block" |
+    "renew" |
+    null
+  >(null);
+
+
+  // =======================================================
+  // ACTION LOADING
+  // =======================================================
+
+  const [
+    actionLoading,
+    setActionLoading
+  ] = useState(false);
+
+
+  // =======================================================
+  // RENEW DAYS
+  // =======================================================
+
+  const [
+    days,
+    setDays
+  ] = useState("30");
+
+
+  // =======================================================
+  // LOAD ACCOUNTS
+  // =======================================================
+
+  const loadAccounts = async (
     targetPage: number,
-    keyword: string,
-    dateFrom: string,
-    dateTo: string
-  ) {
-
-    console.log("GET REPORT ACCOUNTS:", {
-      page: targetPage,
-      size,
-      keyword,
-      from: dateFrom,
-      to: dateTo,
-    });
-
+    targetSize: number,
+    keyword: string
+  ) => {
 
     try {
 
       setLoading(true);
+
       setError("");
 
 
-      const response = await getAccountReports(
-        targetPage,
-        size,
-        keyword,
-        dateFrom,
-        dateTo
+      console.log(
+        "GET ACCOUNTS:",
+        {
+          page: targetPage,
+          size: targetSize,
+          keyword,
+        }
       );
+
+
+      const data =
+        await getAccounts(
+          targetPage,
+          targetSize,
+          keyword
+        );
 
 
       console.log(
-        "GET REPORT ACCOUNTS RESPONSE:",
-        response
+        "GET ACCOUNTS RESPONSE:",
+        data
       );
 
 
-      setRows(
-        response?.content || []
+      setAccounts(
+        data.content || []
       );
 
 
       setPage(
-        response?.number ?? targetPage
+        data.number ?? targetPage
+      );
+
+
+      setSize(
+        data.size ?? targetSize
       );
 
 
       setTotalPages(
-        response?.totalPages ?? 0
+        data.totalPages ?? 0
       );
 
 
       setTotalElements(
-        response?.totalElements ?? 0
+        data.totalElements ?? 0
       );
 
 
     } catch (err: any) {
 
       console.error(
-        "REPORT API ERROR:",
+        "ACCOUNT API ERROR:",
         err
       );
 
 
       console.error(
-        "REPORT API RESPONSE:",
+        "ACCOUNT API RESPONSE:",
         err?.response?.data
       );
 
 
-      setRows([]);
+      setAccounts([]);
 
       setTotalPages(0);
 
@@ -193,7 +239,7 @@ export default function ReportsPage() {
 
       setError(
         err?.response?.data?.message ||
-        "Không thể tải báo cáo."
+        "Không thể tải danh sách tài khoản."
       );
 
 
@@ -202,51 +248,20 @@ export default function ReportsPage() {
       setLoading(false);
 
     }
-  }
+
+  };
 
 
   // =======================================================
-  // ⭐ QUAN TRỌNG
-  // VỪA VÀO /reports -> GỌI API NGAY
+  // INITIAL LOAD
   // =======================================================
 
   useEffect(() => {
 
-    console.log(
-      "===================================="
-    );
-
-    console.log(
-      "REPORT PAGE MOUNTED"
-    );
-
-    console.log(
-      "AUTO LOAD REPORT API"
-    );
-
-    console.log(
-      "===================================="
-    );
-
-
-    // Đồng bộ filter hiển thị
-    setSearchedAccount("");
-
-    setSearchedFrom(
-      DEFAULT_FROM
-    );
-
-    setSearchedTo(
-      DEFAULT_TO
-    );
-
-
-    // GỌI API NGAY
-    loadReports(
+    loadAccounts(
       0,
-      "",
-      DEFAULT_FROM,
-      DEFAULT_TO
+      10,
+      ""
     );
 
   }, []);
@@ -256,128 +271,415 @@ export default function ReportsPage() {
   // SEARCH
   // =======================================================
 
-  async function handleSearch() {
+  const handleSearch = () => {
 
-    console.log(
-      "SEARCH REPORT:",
-      {
-        account: accountFilter,
-        from,
-        to,
-      }
+    setSearchKeyword(
+      query
     );
 
 
-    if (!from || !to) {
-
-      setError(
-        "Vui lòng chọn khoảng thời gian."
-      );
-
-      return;
-    }
-
-
-    if (from > to) {
-
-      setError(
-        "Ngày bắt đầu không được lớn hơn ngày kết thúc."
-      );
-
-      return;
-    }
-
-
-    setSearchedAccount(
-      accountFilter
-    );
-
-    setSearchedFrom(
-      from
-    );
-
-    setSearchedTo(
-      to
-    );
-
-
-    await loadReports(
+    loadAccounts(
       0,
-      accountFilter,
-      from,
-      to
+      size,
+      query
     );
-  }
+
+  };
 
 
   // =======================================================
-  // PAGINATION
+  // SEARCH ENTER
   // =======================================================
 
-  async function handlePageChange(
-    newPage: number
-  ) {
+  const handleSearchKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>
+  ) => {
 
-    console.log(
-      "CHANGE PAGE:",
-      newPage
-    );
+    if (
+      event.key === "Enter"
+    ) {
 
+      handleSearch();
 
-    if (newPage < 0) {
-      return;
     }
+
+  };
+
+
+  // =======================================================
+  // CHANGE PAGE
+  // =======================================================
+
+  const handlePageChange = (
+    targetPage: number
+  ) => {
+
+    if (
+      targetPage < 0 ||
+      targetPage >= totalPages ||
+      loading
+    ) {
+
+      return;
+
+    }
+
+
+    loadAccounts(
+      targetPage,
+      size,
+      searchKeyword
+    );
+
+  };
+
+
+  // =======================================================
+  // CHANGE SIZE
+  // =======================================================
+
+  const handleSizeChange = (
+    newSize: number
+  ) => {
+
+    setSize(
+      newSize
+    );
+
+
+    loadAccounts(
+      0,
+      newSize,
+      searchKeyword
+    );
+
+  };
+
+
+  // =======================================================
+  // BLOCK / UNBLOCK
+  // =======================================================
+
+  const updateStatus = async () => {
+
+    if (!selected) {
+
+      return;
+
+    }
+
+
+    try {
+
+      setActionLoading(
+        true
+      );
+
+      setError("");
+
+
+      // ================================================
+      // ACCOUNT ĐANG BỊ KHÓA
+      // => UNBLOCK
+      // ================================================
+
+      if (
+        selected.status === "00"
+      ) {
+
+        console.log(
+          "UNBLOCK ACCOUNT:",
+          selected.account
+        );
+
+
+        await unblockAccount(
+          selected.account
+        );
+
+      }
+
+      // ================================================
+      // ACCOUNT ĐANG ACTIVE
+      // => BLOCK
+      // ================================================
+
+      else {
+
+        console.log(
+          "BLOCK ACCOUNT:",
+          selected.account
+        );
+
+
+        await blockAccount(
+          selected.account
+        );
+
+      }
+
+
+      // ================================================
+      // CLOSE MODAL
+      // ================================================
+
+      setModal(null);
+
+      setSelected(null);
+
+
+      // ================================================
+      // RELOAD CURRENT PAGE
+      // ================================================
+
+      await loadAccounts(
+        page,
+        size,
+        searchKeyword
+      );
+
+
+    } catch (err: any) {
+
+      console.error(
+        "UPDATE ACCOUNT STATUS ERROR:",
+        err
+      );
+
+
+      console.error(
+        "RESPONSE:",
+        err?.response?.data
+      );
+
+
+      setError(
+        err?.response?.data?.message ||
+        "Không thể cập nhật trạng thái tài khoản."
+      );
+
+
+    } finally {
+
+      setActionLoading(
+        false
+      );
+
+    }
+
+  };
+
+
+  // =======================================================
+  // RENEW ACCOUNT
+  // =======================================================
+
+  const handleRenew = async () => {
+
+    if (!selected) {
+
+      return;
+
+    }
+
+
+    const renewDays =
+      Number(days);
 
 
     if (
-      totalPages > 0 &&
-      newPage >= totalPages
+      !Number.isFinite(
+        renewDays
+      ) ||
+      renewDays <= 0
     ) {
+
+      setError(
+        "Số ngày gia hạn phải lớn hơn 0."
+      );
+
       return;
+
     }
 
 
-    await loadReports(
-      newPage,
-      searchedAccount,
-      searchedFrom,
-      searchedTo
-    );
-  }
+    try {
+
+      setActionLoading(
+        true
+      );
+
+      setError("");
+
+
+      console.log(
+        "RENEW ACCOUNT:",
+        {
+          account: selected.account,
+          days: renewDays,
+        }
+      );
+
+
+      await renewAccount(
+        selected.account,
+        renewDays
+      );
+
+
+      // ================================================
+      // CLOSE MODAL
+      // ================================================
+
+      setModal(null);
+
+      setSelected(null);
+
+
+      // ================================================
+      // RELOAD
+      // ================================================
+
+      await loadAccounts(
+        page,
+        size,
+        searchKeyword
+      );
+
+
+    } catch (err: any) {
+
+      console.error(
+        "RENEW ACCOUNT ERROR:",
+        err
+      );
+
+
+      console.error(
+        "RESPONSE:",
+        err?.response?.data
+      );
+
+
+      setError(
+        err?.response?.data?.message ||
+        "Không thể gia hạn tài khoản."
+      );
+
+
+    } finally {
+
+      setActionLoading(
+        false
+      );
+
+    }
+
+  };
 
 
   // =======================================================
-  // STATISTICS
+  // PAGE NUMBERS
   // =======================================================
 
-  const totalBalance =
-    rows.reduce(
-      (sum, account) =>
-        sum + Number(
-          account.balance || 0
-        ),
-      0
+  const getPageNumbers = () => {
+
+    if (
+      totalPages <= 0
+    ) {
+
+      return [];
+
+    }
+
+
+    const pages: number[] = [];
+
+
+    if (
+      totalPages <= 5
+    ) {
+
+      for (
+        let i = 0;
+        i < totalPages;
+        i++
+      ) {
+
+        pages.push(i);
+
+      }
+
+
+      return pages;
+
+    }
+
+
+    let start =
+      Math.max(
+        page - 2,
+        0
+      );
+
+
+    if (
+      start + 5 >
+      totalPages
+    ) {
+
+      start =
+        totalPages - 5;
+
+    }
+
+
+    for (
+      let i = 0;
+      i < 5;
+      i++
+    ) {
+
+      pages.push(
+        start + i
+      );
+
+    }
+
+
+    return pages;
+
+  };
+
+
+  // =======================================================
+  // MONEY
+  // =======================================================
+
+  const money = (
+    value: number | null | undefined
+  ) => {
+
+    const number =
+      Number(
+        value ?? 0
+      );
+
+
+    return (
+      `${number >= 0 ? "+" : "-"}$` +
+      Math.abs(
+        number
+      ).toLocaleString(
+        "en-US",
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }
+      )
     );
 
-
-  const totalProfit =
-    rows.reduce(
-      (sum, account) =>
-        sum + Number(
-          account.profit || 0
-        ),
-      0
-    );
-
-
-  const totalTrades =
-    rows.reduce(
-      (sum, account) =>
-        sum + Number(
-          account.totalTrades || 0
-        ),
-      0
-    );
+  };
 
 
   // =======================================================
@@ -394,112 +696,9 @@ export default function ReportsPage() {
       =================================================== */}
 
       <PageHeader
-        title="Báo cáo thống kê"
-        description="Theo dõi số dư và hiệu quả giao dịch theo tài khoản"
-      >
-
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-
-          <CalendarDays size={15} />
-
-          {searchedFrom}
-          {" → "}
-          {searchedTo}
-
-        </div>
-
-      </PageHeader>
-
-
-      {/* ===================================================
-          FILTER
-      =================================================== */}
-
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-
-        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_auto]">
-
-
-          {/* ACCOUNT */}
-
-          <div className="relative">
-
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={17}
-            />
-
-            <input
-              value={accountFilter}
-              onChange={(e) =>
-                setAccountFilter(
-                  e.target.value
-                )
-              }
-              placeholder="Tìm tài khoản..."
-              className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500"
-            />
-
-          </div>
-
-
-          {/* FROM */}
-
-          <input
-            type="date"
-            value={from}
-            onChange={(e) =>
-              setFrom(
-                e.target.value
-              )
-            }
-            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-          />
-
-
-          {/* TO */}
-
-          <input
-            type="date"
-            value={to}
-            onChange={(e) =>
-              setTo(
-                e.target.value
-              )
-            }
-            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-          />
-
-
-          {/* SEARCH */}
-
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleSearch}
-            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-
-            {loading ? (
-
-              <Loader2
-                size={16}
-                className="animate-spin"
-              />
-
-            ) : (
-
-              <Search size={16} />
-
-            )}
-
-            Tìm kiếm
-
-          </button>
-
-        </div>
-
-      </div>
+        title="Quản lý tài khoản"
+        description="Tìm kiếm, khóa và gia hạn tài khoản sử dụng hệ thống"
+      />
 
 
       {/* ===================================================
@@ -508,9 +707,26 @@ export default function ReportsPage() {
 
       {error && (
 
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <div className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
 
-          {error}
+          <p className="text-sm text-red-600">
+
+            {error}
+
+          </p>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              setError("")
+            }
+            className="text-red-400 hover:text-red-600"
+          >
+
+            <X size={17} />
+
+          </button>
 
         </div>
 
@@ -518,88 +734,119 @@ export default function ReportsPage() {
 
 
       {/* ===================================================
-          STAT
+          MAIN
       =================================================== */}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
 
 
-        <StatCard
-          label="Số dư hiện tại"
-          value={money(totalBalance)}
-          sub={`Đang hiển thị ${rows.length} tài khoản`}
-          icon={BarChart3}
-        />
+        {/* =================================================
+            HEADER / SEARCH
+        ================================================= */}
+
+        <div className="flex flex-col gap-4 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
 
 
-        <StatCard
-          label="Lợi nhuận trong kỳ"
-          value={money(totalProfit)}
-          sub={`${searchedFrom} → ${searchedTo}`}
-          positive={
-            totalProfit >= 0
-          }
-          icon={
-            totalProfit >= 0
-              ? TrendingUp
-              : TrendingDown
-          }
-        />
+          <div>
+
+            <p className="text-sm font-semibold text-slate-800">
+
+              Danh sách tài khoản
+
+            </p>
 
 
-        <StatCard
-          label="Tổng giao dịch"
-          value={String(totalTrades)}
-          sub={`Tổng ${totalElements} tài khoản`}
-          icon={CalendarDays}
-        />
+            <p className="mt-1 text-xs text-slate-400">
 
-      </div>
+              Tổng cộng{" "}
+
+              <span className="font-medium text-slate-600">
+
+                {totalElements}
+
+              </span>
+
+              {" "}tài khoản
+
+            </p>
+
+          </div>
 
 
-      {/* ===================================================
-          TABLE
-      =================================================== */}
-
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
 
 
-        {/* TABLE HEADER */}
+            {/* SEARCH */}
 
-        <div className="border-b border-slate-100 px-5 py-4">
+            <div className="relative">
 
-          <h3 className="font-semibold text-slate-900">
-            Thống kê theo tài khoản
-          </h3>
+              <Search
+                size={17}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
 
-          <p className="mt-1 text-xs text-slate-400">
-            Bấm vào tài khoản để xem toàn bộ giao dịch
-            trong khoảng thời gian đã chọn.
-          </p>
+
+              <input
+                type="text"
+                value={query}
+                onChange={(event) =>
+                  setQuery(
+                    event.target.value
+                  )
+                }
+                onKeyDown={
+                  handleSearchKeyDown
+                }
+                placeholder="Tìm tài khoản..."
+                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 sm:w-64"
+              />
+
+            </div>
+
+
+            <button
+              type="button"
+              onClick={handleSearch}
+              disabled={loading}
+              className="h-10 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+
+              {loading
+                ? "Đang tìm..."
+                : "Tìm kiếm"}
+
+            </button>
+
+          </div>
 
         </div>
 
 
-        {/* TABLE */}
+        {/* =================================================
+            TABLE
+        ================================================= */}
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[1100px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
 
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
+
+            {/* HEADER */}
+
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400">
 
               <tr>
+
+                <th className="px-5 py-3 font-medium">
+                  STT
+                </th>
 
                 <th className="px-5 py-3 font-medium">
                   Tài khoản
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Trạng thái
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Số dư hiện tại
+                  Số dư
                 </th>
 
                 <th className="px-5 py-3 font-medium">
@@ -607,11 +854,15 @@ export default function ReportsPage() {
                 </th>
 
                 <th className="px-5 py-3 font-medium">
+                  Giao dịch
+                </th>
+
+                <th className="px-5 py-3 font-medium">
                   Win Rate
                 </th>
 
                 <th className="px-5 py-3 font-medium">
-                  Giao dịch
+                  Trạng thái
                 </th>
 
                 <th className="px-5 py-3 font-medium">
@@ -619,12 +870,15 @@ export default function ReportsPage() {
                 </th>
 
                 <th className="px-5 py-3 font-medium">
+                  Thao tác
                 </th>
 
               </tr>
 
             </thead>
 
+
+            {/* BODY */}
 
             <tbody className="divide-y divide-slate-100">
 
@@ -636,7 +890,7 @@ export default function ReportsPage() {
                 <tr>
 
                   <td
-                    colSpan={8}
+                    colSpan={9}
                     className="px-5 py-14 text-center text-slate-400"
                   >
 
@@ -647,7 +901,7 @@ export default function ReportsPage() {
                         className="animate-spin"
                       />
 
-                      Đang tải báo cáo...
+                      Đang tải danh sách tài khoản...
 
                     </div>
 
@@ -655,19 +909,16 @@ export default function ReportsPage() {
 
                 </tr>
 
-              ) : rows.length === 0 ? (
-
-                /* EMPTY */
+              ) : accounts.length === 0 ? (
 
                 <tr>
 
                   <td
-                    colSpan={8}
-                    className="px-5 py-14 text-center text-slate-400"
+                    colSpan={9}
+                    className="px-5 py-14 text-center text-sm text-slate-400"
                   >
 
-                    Không có tài khoản có giao dịch
-                    trong khoảng thời gian này.
+                    Không tìm thấy tài khoản.
 
                   </td>
 
@@ -675,180 +926,310 @@ export default function ReportsPage() {
 
               ) : (
 
-                /* DATA */
+                accounts.map(
+                  (
+                    account,
+                    index
+                  ) => {
 
-                rows.map(
-                  (account) => (
-
-                    <tr
-                      key={account.account}
-                      className="hover:bg-slate-50"
-                    >
-
-
-                      {/* ACCOUNT */}
-
-                      <td className="px-5 py-4">
-
-                        <div className="font-semibold text-slate-800">
-
-                          {account.account}
-
-                        </div>
-
-                      </td>
+                    const remainingDays =
+                      Number(
+                        account.remainingDays ?? 0
+                      );
 
 
-                      {/* STATUS */}
+                    return (
 
-                      <td className="px-5 py-4">
-
-                        {account.status === "01" ? (
-
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-
-                            Đang hoạt động
-
-                          </span>
-
-                        ) : (
-
-                          <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
-
-                            Bị khóa
-
-                          </span>
-
-                        )}
-
-                      </td>
-
-
-                      {/* BALANCE */}
-
-                      <td className="px-5 py-4 font-medium text-slate-800">
-
-                        {money(
-                          account.balance
-                        )}
-
-                      </td>
-
-
-                      {/* PROFIT */}
-
-                      <td
-                        className={`px-5 py-4 font-semibold ${
-                          Number(
-                            account.profit || 0
-                          ) >= 0
-                            ? "text-emerald-600"
-                            : "text-red-500"
-                        }`}
+                      <tr
+                        key={account.account}
+                        className="hover:bg-slate-50"
                       >
 
-                        {money(
-                          account.profit
-                        )}
 
-                      </td>
+                        {/* STT */}
 
+                        <td className="px-5 py-4 text-slate-400">
 
-                      {/* WIN RATE */}
+                          {page * size + index + 1}
 
-                      <td className="px-5 py-4 text-slate-600">
-
-                        {Number(
-                          account.winRate || 0
-                        ).toFixed(1)}
-                        %
-
-                      </td>
+                        </td>
 
 
-                      {/* TRADES */}
+                        {/* ACCOUNT */}
 
-                      <td className="px-5 py-4 text-slate-600">
+                        <td className="px-5 py-4">
 
-                        {account.totalTrades}
+                          <p className="font-semibold text-slate-800">
 
-                      </td>
+                            {account.account}
+
+                          </p>
+
+                        </td>
 
 
-                      {/* LICENSE */}
+                        {/* BALANCE */}
 
-                      <td className="px-5 py-4">
+                        <td className="px-5 py-4 font-medium text-slate-800">
 
-                        {account.remainingDays !== undefined ? (
+                          $
+                          {Number(
+                            account.balance ?? 0
+                          ).toLocaleString(
+                            "en-US",
+                            {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            }
+                          )}
 
-                          <div>
+                        </td>
 
-                            <div
-                              className={`font-medium ${
-                                account.remainingDays <= 0
-                                  ? "text-red-500"
-                                  : account.remainingDays <= 7
-                                    ? "text-amber-600"
-                                    : "text-slate-700"
-                              }`}
-                            >
 
-                              {account.remainingDays <= 0
-                                ? "Đã hết hạn"
-                                : `Còn ${account.remainingDays} ngày`}
+                        {/* PROFIT */}
+
+                        <td
+                          className={`px-5 py-4 font-semibold ${
+                            Number(
+                              account.profit ?? 0
+                            ) >= 0
+                              ? "text-emerald-600"
+                              : "text-red-500"
+                          }`}
+                        >
+
+                          {money(
+                            account.profit
+                          )}
+
+                        </td>
+
+
+                        {/* TRADES */}
+
+                        <td className="px-5 py-4 text-slate-600">
+
+                          {account.totalTrades ?? 0}
+
+                        </td>
+
+
+                        {/* WIN RATE */}
+
+                        <td className="px-5 py-4 text-slate-600">
+
+                          {Number(
+                            account.winRate ?? 0
+                          ).toFixed(2)}
+
+                          %
+
+                        </td>
+
+
+                        {/* STATUS */}
+
+                        <td className="px-5 py-4">
+
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                              account.status === "01"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-red-50 text-red-700"
+                            }`}
+                          >
+
+                            {account.status === "01"
+                              ? "Đang hoạt động"
+                              : "Bị khóa"}
+
+                          </span>
+
+                        </td>
+
+
+                        {/* LICENSE */}
+
+                        <td className="px-5 py-4">
+
+                          {remainingDays <= 0 ? (
+
+                            <div>
+
+                              <p className="font-semibold text-red-500">
+
+                                Đã hết hạn
+
+                              </p>
+
+
+                              {account.licenseExpiredDt && (
+
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+
+                                  {new Date(
+                                    account.licenseExpiredDt
+                                  ).toLocaleDateString(
+                                    "vi-VN"
+                                  )}
+
+                                </p>
+
+                              )}
 
                             </div>
 
+                          ) : (
 
-                            {account.licenseExpiredDt && (
+                            <div>
 
-                              <div className="mt-0.5 text-[11px] text-slate-400">
+                              <p
+                                className={`font-semibold ${
+                                  remainingDays <= 7
+                                    ? "text-red-500"
+                                    : remainingDays <= 30
+                                      ? "text-amber-500"
+                                      : "text-emerald-600"
+                                }`}
+                              >
 
-                                {new Date(
-                                  account.licenseExpiredDt
-                                ).toLocaleDateString(
-                                  "vi-VN"
+                                Còn {remainingDays} ngày
+
+                              </p>
+
+
+                              {account.licenseExpiredDt && (
+
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+
+                                  Hết hạn{" "}
+
+                                  {new Date(
+                                    account.licenseExpiredDt
+                                  ).toLocaleDateString(
+                                    "vi-VN"
+                                  )}
+
+                                </p>
+
+                              )}
+
+                            </div>
+
+                          )}
+
+                        </td>
+
+
+                        {/* ACTION */}
+
+                        <td className="px-5 py-4">
+
+                          <div className="flex items-center gap-1">
+
+
+                            {/* BLOCK / UNBLOCK */}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+
+                                setSelected(
+                                  account
+                                );
+
+                                setModal(
+                                  "block"
+                                );
+
+                              }}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                              title={
+                                account.status === "00"
+                                  ? "Mở khóa"
+                                  : "Khóa tài khoản"
+                              }
+                            >
+
+                              {account.status === "00"
+                                ? (
+                                  <ShieldCheck
+                                    size={17}
+                                  />
+                                )
+                                : (
+                                  <ShieldBan
+                                    size={17}
+                                  />
                                 )}
 
-                              </div>
+                            </button>
 
-                            )}
+
+                            {/* RENEW */}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+
+                                setSelected(
+                                  account
+                                );
+
+                                setDays(
+                                  "30"
+                                );
+
+                                setModal(
+                                  "renew"
+                                );
+
+                              }}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                              title="Gia hạn"
+                            >
+
+                              <CalendarClock
+                                size={17}
+                              />
+
+                            </button>
+
+
+                            {/* DETAIL */}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+
+                                setSelected(
+                                  account
+                                );
+
+                                setModal(
+                                  null
+                                );
+
+                              }}
+                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                              title="Chi tiết"
+                            >
+
+                              <MoreHorizontal
+                                size={17}
+                              />
+
+                            </button>
 
                           </div>
 
-                        ) : (
+                        </td>
 
-                          "-"
+                      </tr>
 
-                        )}
+                    );
 
-                      </td>
-
-
-                      {/* DETAIL */}
-
-                      <td className="px-5 py-4">
-
-                        <Link
-                          href={`/reports/accounts/${encodeURIComponent(
-                            account.account
-                          )}?from=${searchedFrom}&to=${searchedTo}`}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50"
-                        >
-
-                          Chi tiết
-
-                          <ChevronRight
-                            size={14}
-                          />
-
-                        </Link>
-
-                      </td>
-
-                    </tr>
-
-                  )
+                  }
                 )
 
               )}
@@ -860,82 +1241,347 @@ export default function ReportsPage() {
         </div>
 
 
-        {/* ===================================================
+        {/* =================================================
             PAGINATION
-        =================================================== */}
+        ================================================= */}
 
-        {totalPages > 0 && (
-
-          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
 
 
-            <div className="text-sm text-slate-500">
+          <div className="text-xs text-slate-400">
 
-              Tổng{" "}
+            {totalElements > 0
+              ? `Trang ${page + 1} / ${totalPages} · ${totalElements} tài khoản`
+              : "Không có dữ liệu"}
 
-              <span className="font-medium text-slate-700">
-
-                {totalElements}
-
-              </span>
-
-              {" "}tài khoản
-
-            </div>
+          </div>
 
 
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
 
 
-              {/* PREVIOUS */}
+            {/* SIZE */}
 
-              <button
-                type="button"
-                disabled={
-                  loading ||
-                  page === 0
-                }
-                onClick={() =>
-                  handlePageChange(
-                    page - 1
+            <select
+              value={size}
+              onChange={(event) =>
+                handleSizeChange(
+                  Number(
+                    event.target.value
                   )
-                }
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
+                )
+              }
+              disabled={loading}
+              className="mr-2 h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-blue-500"
+            >
 
-                Trước
+              <option value={10}>
+                10 / trang
+              </option>
 
-              </button>
+              <option value={20}>
+                20 / trang
+              </option>
+
+              <option value={50}>
+                50 / trang
+              </option>
+
+              <option value={100}>
+                100 / trang
+              </option>
+
+            </select>
 
 
-              {/* PAGE */}
+            {/* PREVIOUS */}
 
-              <div className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
+            <button
+              type="button"
+              disabled={
+                page <= 0 ||
+                loading ||
+                totalPages === 0
+              }
+              onClick={() =>
+                handlePageChange(
+                  page - 1
+                )
+              }
+              className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
 
-                {page + 1}
-                {" / "}
-                {totalPages}
+              <ChevronLeft
+                size={14}
+              />
+
+              Trước
+
+            </button>
+
+
+            {/* NUMBERS */}
+
+            {getPageNumbers().map(
+              (
+                pageNumber
+              ) => (
+
+                <button
+                  key={pageNumber}
+                  type="button"
+                  onClick={() =>
+                    handlePageChange(
+                      pageNumber
+                    )
+                  }
+                  disabled={loading}
+                  className={`h-9 min-w-9 rounded-lg px-3 text-xs ${
+                    pageNumber === page
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+
+                  {pageNumber + 1}
+
+                </button>
+
+              )
+            )}
+
+
+            {/* NEXT */}
+
+            <button
+              type="button"
+              disabled={
+                page >= totalPages - 1 ||
+                loading ||
+                totalPages === 0
+              }
+              onClick={() =>
+                handlePageChange(
+                  page + 1
+                )
+              }
+              className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+
+              Sau
+
+              <ChevronRight
+                size={14}
+              />
+
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* ===================================================
+          DETAIL MODAL
+      =================================================== */}
+
+      {selected &&
+        !modal && (
+
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+            onClick={() =>
+              setSelected(null)
+            }
+          >
+
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
+
+              <div className="flex items-center justify-between">
+
+                <h3 className="text-lg font-semibold text-slate-900">
+
+                  Tài khoản{" "}
+
+                  {selected.account}
+
+                </h3>
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected(null)
+                  }
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+
+                  <X
+                    size={19}
+                  />
+
+                </button>
 
               </div>
 
 
-              {/* NEXT */}
+              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    Balance
+                  </p>
+
+                  <p className="mt-1 font-semibold text-slate-800">
+
+                    $
+                    {Number(
+                      selected.balance ?? 0
+                    ).toLocaleString(
+                      "en-US",
+                      {
+                        minimumFractionDigits: 2,
+                      }
+                    )}
+
+                  </p>
+
+                </div>
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    Profit
+                  </p>
+
+                  <p
+                    className={`mt-1 font-semibold ${
+                      Number(
+                        selected.profit ?? 0
+                      ) >= 0
+                        ? "text-emerald-600"
+                        : "text-red-500"
+                    }`}
+                  >
+
+                    {money(
+                      selected.profit
+                    )}
+
+                  </p>
+
+                </div>
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    Giao dịch
+                  </p>
+
+                  <p className="mt-1 font-semibold text-slate-800">
+
+                    {selected.totalTrades ?? 0}
+
+                  </p>
+
+                </div>
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    Win Rate
+                  </p>
+
+                  <p className="mt-1 font-semibold text-slate-800">
+
+                    {Number(
+                      selected.winRate ?? 0
+                    ).toFixed(2)}
+
+                    %
+
+                  </p>
+
+                </div>
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    Trạng thái
+                  </p>
+
+                  <p
+                    className={`mt-1 font-semibold ${
+                      selected.status === "01"
+                        ? "text-emerald-600"
+                        : "text-red-500"
+                    }`}
+                  >
+
+                    {selected.status === "01"
+                      ? "Đang hoạt động"
+                      : "Bị khóa"}
+
+                  </p>
+
+                </div>
+
+
+                <div className="rounded-lg bg-slate-50 p-4">
+
+                  <p className="text-xs text-slate-400">
+                    License
+                  </p>
+
+                  <p
+                    className={`mt-1 font-semibold ${
+                      Number(
+                        selected.remainingDays ?? 0
+                      ) <= 7
+                        ? "text-red-500"
+                        : Number(
+                            selected.remainingDays ?? 0
+                          ) <= 30
+                          ? "text-amber-500"
+                          : "text-emerald-600"
+                    }`}
+                  >
+
+                    {Number(
+                      selected.remainingDays ?? 0
+                    ) > 0
+                      ? `Còn ${selected.remainingDays} ngày`
+                      : "Đã hết hạn"}
+
+                  </p>
+
+                </div>
+
+              </div>
+
 
               <button
                 type="button"
-                disabled={
-                  loading ||
-                  page >= totalPages - 1
-                }
                 onClick={() =>
-                  handlePageChange(
-                    page + 1
-                  )
+                  setSelected(null)
                 }
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-5 w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
               >
 
-                Sau
+                Đóng
 
               </button>
 
@@ -945,8 +1591,344 @@ export default function ReportsPage() {
 
         )}
 
-      </div>
+
+      {/* ===================================================
+          BLOCK / UNBLOCK MODAL
+      =================================================== */}
+
+      {modal === "block" &&
+        selected && (
+
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+            onClick={() => {
+
+              if (!actionLoading) {
+
+                setModal(null);
+
+              }
+
+            }}
+          >
+
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
+
+              <div className="flex items-center justify-between">
+
+                <h3 className="text-lg font-semibold text-slate-900">
+
+                  {selected.status === "00"
+                    ? "Mở khóa tài khoản"
+                    : "Khóa tài khoản"}
+
+                </h3>
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModal(null)
+                  }
+                  disabled={actionLoading}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+                >
+
+                  <X
+                    size={18}
+                  />
+
+                </button>
+
+              </div>
+
+
+              <p className="mt-3 text-sm leading-6 text-slate-500">
+
+                {selected.status === "00"
+
+                  ? `Tài khoản ${selected.account} đang bị khóa. Anh có muốn mở khóa tài khoản này không?`
+
+                  : `Tài khoản ${selected.account} sẽ bị khóa và không thể tiếp tục sử dụng hệ thống.`}
+
+              </p>
+
+
+              <div className="mt-6 flex justify-end gap-2">
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModal(null)
+                  }
+                  disabled={actionLoading}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+
+                  Hủy
+
+                </button>
+
+
+                <button
+                  type="button"
+                  onClick={updateStatus}
+                  disabled={actionLoading}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+                    selected.status === "00"
+                      ? "bg-emerald-600 hover:bg-emerald-700"
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
+                >
+
+                  {actionLoading && (
+
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
+
+                  )}
+
+
+                  {selected.status === "00"
+                    ? "Mở khóa"
+                    : "Khóa tài khoản"}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
+
+      {/* ===================================================
+          RENEW MODAL
+      =================================================== */}
+
+      {modal === "renew" &&
+        selected && (
+
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
+            onClick={() => {
+
+              if (!actionLoading) {
+
+                setModal(null);
+
+              }
+
+            }}
+          >
+
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+              onClick={(event) =>
+                event.stopPropagation()
+              }
+            >
+
+              <div className="flex items-center justify-between">
+
+                <h3 className="text-lg font-semibold text-slate-900">
+
+                  Gia hạn tài khoản
+
+                </h3>
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModal(null)
+                  }
+                  disabled={actionLoading}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
+                >
+
+                  <X
+                    size={18}
+                  />
+
+                </button>
+
+              </div>
+
+
+              <p className="mt-3 text-sm text-slate-500">
+
+                Gia hạn license cho tài khoản{" "}
+
+                <span className="font-semibold text-slate-700">
+
+                  {selected.account}
+
+                </span>
+
+              </p>
+
+
+              {/* CURRENT LICENSE */}
+
+              <div className="mt-5 rounded-lg bg-slate-50 p-4">
+
+                <p className="text-xs text-slate-400">
+
+                  Thời hạn hiện tại
+
+                </p>
+
+
+                <p className="mt-1 font-semibold text-slate-800">
+
+                  {selected.licenseExpiredDt
+
+                    ? new Date(
+                        selected.licenseExpiredDt
+                      ).toLocaleDateString(
+                        "vi-VN"
+                      )
+
+                    : "Chưa có thời hạn"}
+
+                </p>
+
+
+                <p className="mt-1 text-xs text-slate-400">
+
+                  {Number(
+                    selected.remainingDays ?? 0
+                  ) > 0
+
+                    ? `Còn ${selected.remainingDays} ngày`
+
+                    : "Đã hết hạn"}
+
+                </p>
+
+              </div>
+
+
+              {/* DAYS */}
+
+              <div className="mt-5">
+
+                <label className="text-sm font-medium text-slate-700">
+
+                  Số ngày gia hạn
+
+                </label>
+
+
+                <input
+                  type="number"
+                  min={1}
+                  value={days}
+                  onChange={(event) =>
+                    setDays(
+                      event.target.value
+                    )
+                  }
+                  className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+                />
+
+
+                <div className="mt-2 flex gap-2">
+
+                  {[7, 30, 90, 180, 365].map(
+                    (value) => (
+
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          setDays(
+                            String(value)
+                          )
+                        }
+                        className={`rounded-lg border px-3 py-1.5 text-xs ${
+                          days === String(value)
+                            ? "border-blue-500 bg-blue-50 text-blue-600"
+                            : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                        }`}
+                      >
+
+                        {value} ngày
+
+                      </button>
+
+                    )
+                  )}
+
+                </div>
+
+              </div>
+
+
+              {/* ACTION */}
+
+              <div className="mt-6 flex justify-end gap-2">
+
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setModal(null)
+                  }
+                  disabled={actionLoading}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+
+                  Hủy
+
+                </button>
+
+
+                <button
+                  type="button"
+                  onClick={handleRenew}
+                  disabled={
+                    actionLoading ||
+                    Number(days) <= 0
+                  }
+                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+
+                  {actionLoading && (
+
+                    <Loader2
+                      size={15}
+                      className="animate-spin"
+                    />
+
+                  )}
+
+
+                  Gia hạn
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
 
     </div>
+
   );
+
 }
