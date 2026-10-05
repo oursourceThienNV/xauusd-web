@@ -137,6 +137,12 @@ export default function ReportsPage() {
 
 
   const [
+    roleType,
+    setRoleType
+  ] = useState("");
+
+
+  const [
     from,
     setFrom
   ] = useState(
@@ -159,6 +165,12 @@ export default function ReportsPage() {
   const [
     searchedAccount,
     setSearchedAccount
+  ] = useState("");
+
+
+  const [
+    searchedRoleType,
+    setSearchedRoleType
   ] = useState("");
 
 
@@ -242,7 +254,8 @@ export default function ReportsPage() {
         targetPage: number,
         keyword: string,
         dateFrom: string,
-        dateTo: string
+        dateTo: string,
+        targetRoleType: string
       ) => {
 
         console.log(
@@ -259,6 +272,7 @@ export default function ReportsPage() {
           keyword,
           from: dateFrom,
           to: dateTo,
+          roleType: targetRoleType,
         });
 
         console.log(
@@ -279,7 +293,8 @@ export default function ReportsPage() {
               PAGE_SIZE,
               keyword,
               dateFrom,
-              dateTo
+              dateTo,
+              targetRoleType
             );
 
 
@@ -399,6 +414,14 @@ export default function ReportsPage() {
       ""
     );
 
+    setSearchedRoleType(
+      ""
+    );
+
+    setRoleType(
+      ""
+    );
+
     setSearchedFrom(
       dates.from
     );
@@ -416,7 +439,8 @@ export default function ReportsPage() {
       0,
       "",
       dates.from,
-      dates.to
+      dates.to,
+      ""
     );
 
   }, [loadReports]);
@@ -465,6 +489,10 @@ export default function ReportsPage() {
       accountFilter
     );
 
+    setSearchedRoleType(
+      roleType
+    );
+
     setSearchedFrom(
       from
     );
@@ -485,7 +513,8 @@ export default function ReportsPage() {
       0,
       accountFilter,
       from,
-      to
+      to,
+      roleType
     );
   }
 
@@ -523,7 +552,8 @@ export default function ReportsPage() {
       newPage,
       searchedAccount,
       searchedFrom,
-      searchedTo
+      searchedTo,
+      searchedRoleType
     );
   }
 
@@ -624,7 +654,7 @@ export default function ReportsPage() {
 
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={17}
+              size={10}
             />
 
 
@@ -638,7 +668,22 @@ export default function ReportsPage() {
               placeholder="Tìm tài khoản..."
               className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500"
             />
-
+            
+          </div>
+          <div className="relative">
+            <select
+              value={roleType}
+              onChange={(e) =>
+                setRoleType(
+                  e.target.value
+                )
+              }
+              className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500"
+            >
+              <option value="">Tất cả</option>
+              <option value="02">Nội bộ</option>
+              <option value="03">Khách hàng</option>
+            </select>
           </div>
 
 
@@ -806,9 +851,14 @@ export default function ReportsPage() {
                 <th className="px-5 py-3 font-medium">
                   Tài khoản
                 </th>
-
+                <th className="px-5 py-3 font-medium">
+                  Tên
+                </th>
                 <th className="px-5 py-3 font-medium">
                   Trạng thái
+                </th>
+                <th className="px-5 py-3 font-medium">
+                  Tình trạng bot
                 </th>
 
                 <th className="px-5 py-3 font-medium">
@@ -912,6 +962,15 @@ export default function ReportsPage() {
                         </div>
 
                       </td>
+                      <td className="px-5 py-4">
+
+                        <div className="font-semibold text-slate-800">
+
+                          {account.fullname}
+
+                        </div>
+
+                      </td>
 
 
                       {/* STATUS */}
@@ -932,6 +991,28 @@ export default function ReportsPage() {
                           <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
 
                             Bị khóa
+
+                          </span>
+
+                        )}
+
+                      </td>
+                      <td className="px-5 py-4">
+
+                        {account.botStatus ===
+                        "ONLINE" ? (
+
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+
+                            ONLINE
+
+                          </span>
+
+                        ) : (
+
+                          <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
+
+                            KHÔNG CÓ KẾT NỐI
 
                           </span>
 

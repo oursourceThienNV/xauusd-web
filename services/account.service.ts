@@ -2,6 +2,7 @@ import api from "@/lib/axios";
 
 export interface AccountListResponse {
   account: string;
+  fullname:string;
   balance: number;
   profit: number;
   totalTrades: number;

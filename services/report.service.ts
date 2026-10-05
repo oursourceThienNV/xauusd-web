@@ -2,6 +2,7 @@ import api from "@/lib/axios";
 
 export interface AccountReportResponse {
   account: string;
+  fullname:string;
   balance: number;
   profit: number;
   totalTrades: number;
@@ -10,6 +11,7 @@ export interface AccountReportResponse {
   status: string;
   licenseExpiredDt?: string | null;
   remainingDays?: number;
+  botStatus:string;
 }
 
 export interface TradeReportResponse {
@@ -98,7 +100,8 @@ export async function getAccountReports(
   size: number = 10,
   keyword: string = "",
   from: string,
-  to: string
+  to: string,
+  roleType: string = ""
 ) {
   const response =
     await api.get<AccountReportPageResponse>(
@@ -110,6 +113,7 @@ export async function getAccountReports(
           keyword: keyword || undefined,
           from,
           to,
+          roleType: roleType || undefined,
         },
       }
     );

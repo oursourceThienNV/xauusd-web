@@ -844,6 +844,9 @@ export default function AccountsPage() {
                 <th className="px-5 py-3 font-medium">
                   Tài khoản
                 </th>
+                <th className="px-5 py-3 font-medium">
+                  Họ và tên
+                </th>
 
                 <th className="px-5 py-3 font-medium">
                   Số dư
@@ -962,6 +965,15 @@ export default function AccountsPage() {
                           <p className="font-semibold text-slate-800">
 
                             {account.account}
+
+                          </p>
+
+                        </td>
+                        <td className="px-5 py-4">
+
+                          <p className="font-semibold text-slate-800">
+
+                            {account.fullname}
 
                           </p>
 
