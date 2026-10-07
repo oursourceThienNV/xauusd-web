@@ -23,6 +23,7 @@ import StatCard from "@/components/ui/StatCard";
 
 import {
   getAccountReports,
+  exportAccountReports,
   type AccountReportResponse,
 } from "@/services/report.service";
 
@@ -232,7 +233,10 @@ export default function ReportsPage() {
     loading,
     setLoading
   ] = useState(false);
-
+  const [
+    exporting,
+    setExporting
+  ] = useState(false);
 
   // =======================================================
   // ERROR
@@ -517,7 +521,125 @@ export default function ReportsPage() {
       roleType
     );
   }
+// =======================================================
+// EXPORT EXCEL
+// =======================================================
 
+async function handleExportExcel() {
+
+  try {
+
+    // -----------------------------------------------------
+    // VALIDATE DATE
+    // -----------------------------------------------------
+
+    if (!searchedFrom || !searchedTo) {
+
+      setError(
+        "Vui lòng chọn khoảng thời gian."
+      );
+
+      return;
+    }
+
+
+    if (searchedFrom > searchedTo) {
+
+      setError(
+        "Ngày bắt đầu không được lớn hơn ngày kết thúc."
+      );
+
+      return;
+    }
+
+
+    // -----------------------------------------------------
+    // START EXPORT
+    // -----------------------------------------------------
+
+    setExporting(true);
+
+    setError("");
+
+
+    // -----------------------------------------------------
+    // IMPORT SERVICE
+    // -----------------------------------------------------
+
+
+
+    // -----------------------------------------------------
+    // CALL API
+    // -----------------------------------------------------
+
+    const blob =
+      await exportAccountReports(
+        searchedFrom,
+        searchedTo
+      );
+
+
+    // -----------------------------------------------------
+    // CREATE DOWNLOAD URL
+    // -----------------------------------------------------
+
+    const url =
+      window.URL.createObjectURL(
+        new Blob(
+          [blob],
+          {
+            type:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          }
+        )
+      );
+
+
+    // -----------------------------------------------------
+    // CREATE DOWNLOAD LINK
+    // -----------------------------------------------------
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      `bao-cao-${searchedFrom}-${searchedTo}.xlsx`;
+
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+
+    // -----------------------------------------------------
+    // CLEAN URL
+    // -----------------------------------------------------
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (err: any) {
+
+    console.error(
+      "EXPORT EXCEL ERROR:",
+      err
+    );
+
+
+    setError(
+      err?.response?.data?.message ||
+      "Không thể xuất báo cáo Excel."
+    );
+
+  } finally {
+
+    setExporting(false);
+
+  }
+}
 
   // =======================================================
   // PAGINATION
@@ -742,6 +864,39 @@ export default function ReportsPage() {
             Tìm kiếm
 
           </button>
+          <button
+              type="button"
+              disabled={
+                loading ||
+                exporting ||
+                !searchedFrom ||
+                !searchedTo
+              }
+              onClick={handleExportExcel}
+              className="flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+
+              {exporting ? (
+
+                <Loader2
+                  size={16}
+                  className="animate-spin"
+                />
+
+              ) : (
+
+                <span>
+                  ↓
+                </span>
+
+              )}
+
+              {exporting
+                ? "Đang xuất..."
+                : "Export Excel"
+              }
+
+            </button>
 
         </div>
 

@@ -150,3 +150,21 @@ export async function getTradeReports(
 
   return response.data;
 }
+export async function exportAccountReports(
+  from: string,
+  to: string
+): Promise<Blob> {
+
+  const response = await api.get(
+    "/reports/accounts/export",
+    {
+      params: {
+        from,
+        to,
+      },
+      responseType: "blob",
+    }
+  );
+
+  return response.data;
+}
