@@ -8,6 +8,7 @@ import {
   TrendingDown,
   TrendingUp,
   Loader2,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import {
@@ -23,6 +24,7 @@ import StatCard from "@/components/ui/StatCard";
 import {
   getAccountReports,
   getTradeReports,
+  exportTradeReports,
   type AccountReportResponse,
   type TradeReportResponse,
 } from "@/services/report.service";
@@ -158,6 +160,7 @@ export default function AccountReportDetailPage() {
 
   const [loadingTrades, setLoadingTrades] =
     useState(false);
+  const [exportingTrades, setExportingTrades] = useState(false);  
 
 
   // =======================================================
@@ -301,6 +304,52 @@ export default function AccountReportDetailPage() {
 
     }
   }
+
+  
+async function handleExportTrades() {
+  if (!accountNumber || !from || !to) {
+    setError("Vui lòng chọn khoảng thời gian.");
+    return;
+  }
+
+  if (from > to) {
+    setError("Ngày bắt đầu không được lớn hơn ngày kết thúc.");
+    return;
+  }
+
+  try {
+    setExportingTrades(true);
+    setError("");
+
+    const blob = await exportTradeReports(
+      accountNumber,
+      from,
+      to,
+      query
+    );
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `giao-dich-${accountNumber}-${from}-${to}.xlsx`;
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+  } catch (error: any) {
+    console.error("EXPORT TRADE EXCEL ERROR:", error);
+
+    setError(
+      "Không thể tải Excel giao dịch. Vui lòng kiểm tra API backend."
+    );
+  } finally {
+    setExportingTrades(false);
+  }
+}
+
 
 
   // =======================================================
@@ -447,6 +496,16 @@ export default function AccountReportDetailPage() {
     );
   }
 
+  // =======================================================
+  // PROFIT SUMMARY
+  // =======================================================
+
+  const totalProfit = Number(account.profit ?? 0);
+
+  const botProfit = Number(account.autoBotProfit ?? 0);
+
+  const manualProfit = totalProfit - botProfit;
+
 
   // =======================================================
   // RENDER
@@ -499,15 +558,30 @@ export default function AccountReportDetailPage() {
           </div>
 
 
-          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+         
+<div className="flex flex-wrap items-center gap-2">
+  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+    <CalendarDays size={15} />
+    {from}
+    {" → "}
+    {to}
+  </div>
 
-            <CalendarDays size={15} />
+  <button
+    type="button"
+    onClick={handleExportTrades}
+    disabled={exportingTrades || !from || !to || from > to}
+    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    {exportingTrades ? (
+      <Loader2 size={16} className="animate-spin" />
+    ) : (
+      <FileSpreadsheet size={16} />
+    )}
 
-            {from}
-            {" → "}
-            {to}
-
-          </div>
+    {exportingTrades ? "Đang xuất Excel..." : "Tải Excel giao dịch"}
+  </button>
+</div>
 
         </div>
 
@@ -533,7 +607,7 @@ export default function AccountReportDetailPage() {
           STAT CARDS
       =================================================== */}
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
 
 
         <StatCard
@@ -553,6 +627,21 @@ export default function AccountReportDetailPage() {
               : TrendingDown
           }
         />
+        
+        <StatCard
+          label="Bot"
+          value={money(botProfit)}
+          positive={botProfit >= 0}
+          icon={TrendingUp}
+        />
+
+        <StatCard
+          label="Thủ công"
+          value={money(manualProfit)}
+          positive={manualProfit >= 0}
+          icon={TrendingDown}
+        />
+
 
 
         <StatCard
@@ -687,6 +776,9 @@ export default function AccountReportDetailPage() {
                 <th className="px-5 py-3 font-medium">
                   Ticket
                 </th>
+                <th className="px-5 py-3 font-medium">
+                  Loại lệnh
+                </th>
 
                 <th className="px-5 py-3 font-medium">
                   Type
@@ -809,6 +901,23 @@ export default function AccountReportDetailPage() {
                         {trade.ticket}
 
                       </td>
+                      
+                          {/* LOẠI LỆNH BOT / THỦ CÔNG */}
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                                String(trade.autoBot).toLowerCase() === "true"
+                                  ? "bg-blue-50 text-blue-700"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {String(trade.autoBot).toLowerCase() === "true"
+                                ? "Bot"
+                                : "Thủ công"}
+                            </span>
+                          </td>
+
 
 
                       {/* TYPE */}

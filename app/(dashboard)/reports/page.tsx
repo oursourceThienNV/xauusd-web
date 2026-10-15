@@ -710,6 +710,10 @@ async function handleExportExcel() {
         ),
       0
     );
+    const totalAutoBotProfit = rows.reduce(
+  (sum, account) => sum + Number(account.autoBotProfit || 0),
+  0
+);
 
 
   const totalTrades =
@@ -936,20 +940,24 @@ async function handleExportExcel() {
 
 
         <StatCard
-          label="Lợi nhuận trong kỳ"
-          value={money(
-            totalProfit
-          )}
-          sub={`${searchedFrom} → ${searchedTo}`}
-          positive={
-            totalProfit >= 0
-          }
-          icon={
-            totalProfit >= 0
-              ? TrendingUp
-              : TrendingDown
-          }
-        />
+  label="Lợi nhuận trong kỳ"
+  value={money(totalProfit)}
+  sub={`${searchedFrom} → ${searchedTo}`}
+  positive={totalProfit >= 0}
+  icon={totalProfit >= 0 ? TrendingUp : TrendingDown}
+/>
+
+<StatCard
+  label="Lợi nhuận trong kỳ do bot"
+  value={money(totalAutoBotProfit)}
+  sub={`${searchedFrom} → ${searchedTo}`}
+  positive={totalAutoBotProfit >= 0}
+  icon={
+    totalAutoBotProfit >= 0
+      ? TrendingUp
+      : TrendingDown
+  }
+/>
 
 
         <StatCard
@@ -1022,6 +1030,9 @@ async function handleExportExcel() {
 
                 <th className="px-5 py-3 font-medium">
                   Lợi nhuận
+                </th>
+                <th className="px-5 py-3 font-medium">
+                  Lợi thực tế do bot
                 </th>
 
                 <th className="px-5 py-3 font-medium">
@@ -1203,6 +1214,15 @@ async function handleExportExcel() {
                           account.profit
                         )}
 
+                      </td>
+                      <td
+                        className={`px-5 py-4 font-semibold ${
+                          Number(account.autoBotProfit || 0) >= 0
+                            ? "text-emerald-600"
+                            : "text-red-500"
+                        }`}
+                      >
+                        {money(account.autoBotProfit)}
                       </td>
 
 

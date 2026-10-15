@@ -12,6 +12,7 @@ export interface AccountReportResponse {
   licenseExpiredDt?: string | null;
   remainingDays?: number;
   botStatus:string;
+  autoBotProfit: number;
 }
 
 export interface TradeReportResponse {
@@ -58,6 +59,7 @@ export interface TradeReportResponse {
   updatedDt: string;
 
   firstTradeAfterBotStart: boolean;
+  autoBot: string | null;
 }
 
 export interface AccountReportPageResponse {
@@ -161,6 +163,27 @@ export async function exportAccountReports(
       params: {
         from,
         to,
+      },
+      responseType: "blob",
+    }
+  );
+
+  return response.data;
+}
+
+export async function exportTradeReports(
+  account: string,
+  from: string,
+  to: string,
+  keyword: string = ""
+): Promise<Blob> {
+  const response = await api.get(
+    `/reports/accounts/${encodeURIComponent(account)}/trades/export`,
+    {
+      params: {
+        from,
+        to,
+        keyword: keyword.trim() || undefined,
       },
       responseType: "blob",
     }
