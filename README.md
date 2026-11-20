@@ -1,36 +1,33 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# XAUUSD Gold Admin – Web quản trị (Next.js 16)
 
-## Getting Started
+Giao diện quản trị mới cho bot giao dịch vàng XAUUSD. Web có giao diện tối (Gold) và sáng, chạy tốt trên mobile.
 
-First, run the development server:
+## Chức năng
+
+| Trang | Nội dung |
+|---|---|
+| **Đăng nhập** | Ghi nhớ tài khoản, tự quay về khi hết phiên |
+| **Dashboard** | Tổng số dư, lợi nhuận 7/30/90 ngày, biểu đồ lợi nhuận tích luỹ và theo ngày, tỷ lệ thắng, bot online, hiệu quả theo phương pháp, top tài khoản, cấu hình tốt nhất, lệnh gần nhất |
+| **Tài khoản** | Lọc trạng thái / loại / từ khoá. Tạo mới, sửa, khoá / mở khoá, gia hạn license (có xem trước ngày hết hạn mới). Hiển thị trạng thái bot online |
+| **Báo cáo thống kê** | Chọn nhanh khoảng ngày, sắp xếp cột, dòng tổng, xuất Excel |
+| **Chi tiết tài khoản** | Thống kê, biểu đồ, lợi nhuận bot / thủ công. Lọc nguồn / BUY-SELL / WIN-LOSS, xuất Excel giao dịch |
+| **Nhật ký bot** | Log từ VPS, tô màu theo mức độ, tự cập nhật mỗi 5 giây |
+| **Hồ sơ & bảo mật** | Đổi mật khẩu, chọn giao diện |
+
+## Chạy
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run build
+npm run start            # cổng 3000
+# hoặc PM2:
+pm2 start "npm run start" --name fe_menu
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Cấu hình API trong `.env.production` / `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```
+NEXT_PUBLIC_API_URL=http://180.93.144.96:8084/api/
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Web dùng các API mới của **xauusd-api-python** (dashboard/statistics, summary, logs, tạo/sửa tài khoản). Hãy triển khai API Python trước.

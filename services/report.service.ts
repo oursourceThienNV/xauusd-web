@@ -1,101 +1,9 @@
 import api from "@/lib/axios";
+import type { AccountReportResponse, AccountSummary, Page, TradeReportResponse } from "@/types/api";
 
-export interface AccountReportResponse {
-  account: string;
-  fullname:string;
-  balance: number;
-  profit: number;
-  totalTrades: number;
-  winTrades: number;
-  winRate: number;
-  status: string;
-  licenseExpiredDt?: string | null;
-  remainingDays?: number;
-  botStatus:string;
-  autoBotProfit: number;
-}
-
-export interface TradeReportResponse {
-  id: number;
-  ticket: number;
-  account: string;
-
-  type: string;
-  lot: number;
-
-  openPrice: number;
-  closePrice: number;
-
-  openTime: string;
-  closeTime: string;
-
-  profit: number;
-
-  tradeStatus: string;
-  result: string;
-
-  openBalance: number;
-  closeBalance: number;
-
-  strategy: string;
-
-  multiLot: boolean;
-  lotChain: string;
-
-  rrRisk: number;
-  rrReward: number;
-
-  maFast: number;
-  maSlow: number;
-  maTrendValue: number;
-
-  sideway: boolean;
-  fomo: boolean;
-
-  syncStatus: string;
-  syncedDt: string;
-
-  createdDt: string;
-  updatedDt: string;
-
-  firstTradeAfterBotStart: boolean;
-  autoBot: string | null;
-}
-
-export interface AccountReportPageResponse {
-  content: AccountReportResponse[];
-
-  totalPages: number;
-  totalElements: number;
-
-  number: number;
-  size: number;
-
-  first: boolean;
-  last: boolean;
-
-  numberOfElements: number;
-}
-
-export interface TradeReportPageResponse {
-  content: TradeReportResponse[];
-
-  totalPages: number;
-  totalElements: number;
-
-  number: number;
-  size: number;
-
-  first: boolean;
-  last: boolean;
-
-  numberOfElements: number;
-}
-
-
-// =========================================================
-// ACCOUNT REPORT
-// =========================================================
+export type { AccountReportResponse, AccountSummary, TradeReportResponse } from "@/types/api";
+export type AccountReportPageResponse = Page<AccountReportResponse>;
+export type TradeReportPageResponse = Page<TradeReportResponse>;
 
 export async function getAccountReports(
   page: number = 0,
@@ -105,28 +13,18 @@ export async function getAccountReports(
   to: string,
   roleType: string = ""
 ) {
-  const response =
-    await api.get<AccountReportPageResponse>(
-      "/reports/accounts",
-      {
-        params: {
-          page,
-          size,
-          keyword: keyword || undefined,
-          from,
-          to,
-          roleType: roleType || undefined,
-        },
-      }
-    );
-
+  const response = await api.get<AccountReportPageResponse>("reports/accounts", {
+    params: {
+      page,
+      size,
+      keyword: keyword || undefined,
+      from,
+      to,
+      roleType: roleType || undefined,
+    },
+  });
   return response.data;
 }
-
-
-// =========================================================
-// TRADE REPORT DETAIL
-// =========================================================
 
 export async function getTradeReports(
   account: string,
@@ -134,40 +32,40 @@ export async function getTradeReports(
   size: number = 100,
   keyword: string = "",
   from: string,
-  to: string
+  to: string,
+  filters: { result?: string; type?: string; source?: string } = {}
 ) {
-  const response =
-    await api.get<TradeReportPageResponse>(
-      `/reports/accounts/${encodeURIComponent(account)}/trades`,
-      {
-        params: {
-          page,
-          size,
-          keyword: keyword || undefined,
-          from,
-          to,
-        },
-      }
-    );
-
-  return response.data;
-}
-export async function exportAccountReports(
-  from: string,
-  to: string
-): Promise<Blob> {
-
-  const response = await api.get(
-    "/reports/accounts/export",
+  const response = await api.get<TradeReportPageResponse>(
+    `reports/accounts/${encodeURIComponent(account)}/trades`,
     {
       params: {
+        page,
+        size,
+        keyword: keyword || undefined,
         from,
         to,
+        result: filters.result || undefined,
+        type: filters.type || undefined,
+        source: filters.source || undefined,
       },
-      responseType: "blob",
     }
   );
+  return response.data;
+}
 
+export async function getAccountSummary(account: string, from: string, to: string) {
+  const response = await api.get<AccountSummary>(
+    `reports/accounts/${encodeURIComponent(account)}/summary`,
+    { params: { from, to } }
+  );
+  return response.data;
+}
+
+export async function exportAccountReports(from: string, to: string): Promise<Blob> {
+  const response = await api.get("reports/accounts/export", {
+    params: { from, to },
+    responseType: "blob",
+  });
   return response.data;
 }
 
@@ -177,17 +75,9 @@ export async function exportTradeReports(
   to: string,
   keyword: string = ""
 ): Promise<Blob> {
-  const response = await api.get(
-    `/reports/accounts/${encodeURIComponent(account)}/trades/export`,
-    {
-      params: {
-        from,
-        to,
-        keyword: keyword.trim() || undefined,
-      },
-      responseType: "blob",
-    }
-  );
-
+  const response = await api.get(`reports/accounts/${encodeURIComponent(account)}/trades/export`, {
+    params: { from, to, keyword: keyword.trim() || undefined },
+    responseType: "blob",
+  });
   return response.data;
 }

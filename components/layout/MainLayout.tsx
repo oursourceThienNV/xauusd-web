@@ -1,156 +1,43 @@
 "use client";
 
-import { useState } from "react";
-
-import Sidebar from "./Sidebar";
+import { useState, type ReactNode } from "react";
+import { SessionProvider, useSession } from "@/components/providers/SessionProvider";
+import Logo from "./Logo";
 import Header from "./Header";
+import Sidebar from "./Sidebar";
 
-export default function MainLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function Shell({ children }: { children: ReactNode }) {
+  const { ready } = useSession();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
-  const [
-    mobileSidebarOpen,
-    setMobileSidebarOpen
-  ] = useState(false);
-
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bg">
+        <div className="flex flex-col items-center gap-4">
+          <Logo size={52} className="animate-pulse" />
+          <p className="text-xs tracking-[0.2em] text-subtle">ĐANG TẢI...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="
-        flex
-        h-screen
-        overflow-hidden
-      "
-    >
-
-      {/* =====================================================
-          SIDEBAR
-          ===================================================== */}
-
-      <Sidebar
-        mobileOpen={
-          mobileSidebarOpen
-        }
-        onClose={() =>
-          setMobileSidebarOpen(false)
-        }
-      />
-
-
-      {/* =====================================================
-          MAIN
-          ===================================================== */}
-
-      <div
-        className="
-          flex
-          min-w-0
-          flex-1
-          flex-col
-          overflow-hidden
-        "
-      >
-
-        <Header />
-
-
-        <main
-          className="
-            flex-1
-            overflow-y-auto
-            bg-slate-100
-            p-2
-          "
-        >
-
-          {/* =================================================
-              MOBILE MENU BUTTON
-              ================================================= */}
-
-          <div
-            className="
-              mb-3
-              flex
-              md:hidden
-            "
-          >
-
-            <button
-              type="button"
-              onClick={() =>
-                setMobileSidebarOpen(true)
-              }
-              className="
-                flex
-                h-10
-                w-10
-                items-center
-                justify-center
-                rounded-lg
-                border
-                border-slate-200
-                bg-white
-                text-slate-700
-                shadow-sm
-                hover:bg-slate-50
-              "
-              aria-label="Mở menu"
-            >
-
-              {/* 3 gạch ngang */}
-
-              <span
-                className="
-                  flex
-                  flex-col
-                  gap-1
-                "
-              >
-                <span
-                  className="
-                    block
-                    h-0.5
-                    w-5
-                    rounded
-                    bg-slate-700
-                  "
-                />
-
-                <span
-                  className="
-                    block
-                    h-0.5
-                    w-5
-                    rounded
-                    bg-slate-700
-                  "
-                />
-
-                <span
-                  className="
-                    block
-                    h-0.5
-                    w-5
-                    rounded
-                    bg-slate-700
-                  "
-                />
-              </span>
-
-            </button>
-
-          </div>
-
-
-          {children}
-
+    <div className="flex h-screen overflow-hidden bg-bg">
+      <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <Header onMenu={() => setMobileOpen(true)} />
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[1560px] px-4 py-6 sm:px-7 sm:py-8">{children}</div>
         </main>
-
       </div>
-
     </div>
+  );
+}
+
+export default function MainLayout({ children }: { children: ReactNode }) {
+  return (
+    <SessionProvider>
+      <Shell>{children}</Shell>
+    </SessionProvider>
   );
 }

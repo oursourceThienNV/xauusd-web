@@ -1,1430 +1,430 @@
 "use client";
 
 import Link from "next/link";
-
 import {
-  BarChart3,
-  CalendarDays,
-  ChevronRight,
+  ArrowDownUp,
+  ArrowUpRight,
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  CircleDollarSign,
+  FileSpreadsheet,
+  Hand,
   Search,
   TrendingDown,
   TrendingUp,
-  Loader2,
 } from "lucide-react";
-
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSession } from "@/components/providers/SessionProvider";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import DateRange from "@/components/ui/DateRange";
+import { Input, Select } from "@/components/ui/Input";
+import Money from "@/components/ui/Money";
 import PageHeader from "@/components/ui/PageHeader";
+import Pagination from "@/components/ui/Pagination";
 import StatCard from "@/components/ui/StatCard";
+import { EmptyState, ErrorBanner, SkeletonRows } from "@/components/ui/States";
+import { useToast } from "@/components/ui/Toast";
+import { isAdmin } from "@/lib/auth";
+import { errorMessage } from "@/lib/axios";
+import { ROLE_LABEL, ROLE_OPTIONS } from "@/lib/constants";
+import { downloadBlob, money, num, percent, presetRange, signed, timeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { exportAccountReports, getAccountReports } from "@/services/report.service";
+import type { AccountReportResponse } from "@/types/api";
 
-import {
-  getAccountReports,
-  exportAccountReports,
-  type AccountReportResponse,
-} from "@/services/report.service";
+type SortKey = "account" | "balance" | "profit" | "autoBotProfit" | "winRate" | "totalTrades" | "remainingDays";
 
-
-// =========================================================
-// PAGE SIZE
-// =========================================================
-
-const PAGE_SIZE = 10;
-
-
-// =========================================================
-// GET DATE YYYY-MM-DD
-// =========================================================
-
-function formatDate(
-  date: Date
-): string {
-
-  const year =
-    date.getFullYear();
-
-  const month =
-    String(
-      date.getMonth() + 1
-    ).padStart(2, "0");
-
-  const day =
-    String(
-      date.getDate()
-    ).padStart(2, "0");
-
-
-  return `${year}-${month}-${day}`;
-}
-
-
-// =========================================================
-// GET DEFAULT DATE RANGE
-// =========================================================
-
-function getDefaultDateRange() {
-
-  const now =
-    new Date();
-
-
-  // Ngày đầu tiên của tháng hiện tại
-
-  const firstDay =
-    new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      1
-    );
-
-
-  return {
-    from: formatDate(
-      firstDay
-    ),
-
-    to: formatDate(
-      now
-    ),
-  };
-}
-
-
-// =========================================================
-// MONEY
-// =========================================================
-
-function money(
-  value: number | null | undefined
-) {
-
-  return `$${Number(
-    value || 0
-  ).toLocaleString(
-    "en-US",
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }
-  )}`;
-}
-
-
-// =========================================================
-// PAGE
-// =========================================================
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "profit", label: "Lợi nhuận" },
+  { key: "autoBotProfit", label: "Lợi nhuận bot" },
+  { key: "balance", label: "Số dư" },
+  { key: "winRate", label: "Win rate" },
+  { key: "totalTrades", label: "Số lệnh" },
+  { key: "account", label: "Tài khoản" },
+];
 
 export default function ReportsPage() {
-
-  // =======================================================
-  // DEFAULT DATE
-  // =======================================================
-
-  const defaultDates =
-    getDefaultDateRange();
-
-
-  // =======================================================
-  // FILTER INPUT
-  // =======================================================
-
-  const [
-    accountFilter,
-    setAccountFilter
-  ] = useState("");
-
-
-  const [
-    roleType,
-    setRoleType
-  ] = useState("");
-
-
-  const [
-    from,
-    setFrom
-  ] = useState(
-    defaultDates.from
-  );
-
-
-  const [
-    to,
-    setTo
-  ] = useState(
-    defaultDates.to
-  );
-
-
-  // =======================================================
-  // SEARCHED FILTER
-  // =======================================================
-
-  const [
-    searchedAccount,
-    setSearchedAccount
-  ] = useState("");
-
-
-  const [
-    searchedRoleType,
-    setSearchedRoleType
-  ] = useState("");
-
-
-  const [
-    searchedFrom,
-    setSearchedFrom
-  ] = useState(
-    defaultDates.from
-  );
-
-
-  const [
-    searchedTo,
-    setSearchedTo
-  ] = useState(
-    defaultDates.to
-  );
-
-
-  // =======================================================
-  // DATA
-  // =======================================================
-
-  const [
-    rows,
-    setRows
-  ] = useState<
-    AccountReportResponse[]
-  >([]);
-
-
-  // =======================================================
-  // PAGINATION
-  // =======================================================
-
-  const [
-    page,
-    setPage
-  ] = useState(0);
-
-
-  const [
-    totalPages,
-    setTotalPages
-  ] = useState(0);
-
-
-  const [
-    totalElements,
-    setTotalElements
-  ] = useState(0);
-
-
-  // =======================================================
-  // LOADING
-  // =======================================================
-
-  const [
-    loading,
-    setLoading
-  ] = useState(false);
-  const [
-    exporting,
-    setExporting
-  ] = useState(false);
-
-  // =======================================================
-  // ERROR
-  // =======================================================
-
-  const [
-    error,
-    setError
-  ] = useState("");
-
-
-  // =======================================================
-  // LOAD REPORT
-  // =======================================================
-
-  const loadReports =
-    useCallback(
-      async (
-        targetPage: number,
-        keyword: string,
-        dateFrom: string,
-        dateTo: string,
-        targetRoleType: string
-      ) => {
-
-        console.log(
-          "===================================="
-        );
-
-        console.log(
-          "GET REPORT ACCOUNTS"
-        );
-
-        console.log({
-          page: targetPage,
-          size: PAGE_SIZE,
-          keyword,
-          from: dateFrom,
-          to: dateTo,
-          roleType: targetRoleType,
-        });
-
-        console.log(
-          "===================================="
-        );
-
-
-        try {
-
-          setLoading(true);
-
-          setError("");
-
-
-          const response =
-            await getAccountReports(
-              targetPage,
-              PAGE_SIZE,
-              keyword,
-              dateFrom,
-              dateTo,
-              targetRoleType
-            );
-
-
-          console.log(
-            "REPORT API SUCCESS:",
-            response
-          );
-
-
-          setRows(
-            response?.content || []
-          );
-
-
-          setPage(
-            response?.number ??
-            targetPage
-          );
-
-
-          setTotalPages(
-            response?.totalPages ??
-            0
-          );
-
-
-          setTotalElements(
-            response?.totalElements ??
-            0
-          );
-
-
-        } catch (
-          err: any
-        ) {
-
-          console.error(
-            "REPORT API ERROR:",
-            err
-          );
-
-
-          console.error(
-            "REPORT API RESPONSE:",
-            err?.response?.data
-          );
-
-
-          setRows([]);
-
-          setTotalPages(0);
-
-          setTotalElements(0);
-
-
-          setError(
-            err?.response?.data?.message ||
-            "Không thể tải báo cáo."
-          );
-
-
-        } finally {
-
-          setLoading(false);
-
-        }
-
-      },
-      []
-    );
-
-
-  // =======================================================
-  // AUTO SEARCH WHEN OPEN PAGE
-  // =======================================================
+  const toast = useToast();
+  const { user } = useSession();
+  const admin = isAdmin(user);
+  const initial = presetRange("month");
+
+  const [range, setRange] = useState(initial);
+  const [searched, setSearched] = useState(initial);
+  const [query, setQuery] = useState("");
+  const [roleType, setRoleType] = useState("");
+  const [onlyTraded, setOnlyTraded] = useState(false);
+  const [rows, setRows] = useState<AccountReportResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "profit", dir: "desc" });
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+
+  const load = useCallback(async (r: { from: string; to: string }, kw: string, role: string) => {
+    if (!r.from || !r.to) {
+      setError("Vui lòng chọn khoảng thời gian.");
+      return;
+    }
+    if (r.from > r.to) {
+      setError("Ngày bắt đầu không được lớn hơn ngày kết thúc.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const data = await getAccountReports(0, 1000, kw, r.from, r.to, role);
+      setRows(data.content || []);
+      setSearched(r);
+      setPage(0);
+    } catch (e) {
+      setRows([]);
+      setError(await errorMessage(e, "Không thể tải báo cáo."));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
+    load(initial, "", "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const dates =
-      getDefaultDateRange();
+  const submit = (e?: FormEvent) => {
+    e?.preventDefault();
+    load(range, query.trim(), roleType);
+  };
 
-
-    console.log(
-      "===================================="
-    );
-
-    console.log(
-      "REPORT PAGE OPENED"
-    );
-
-    console.log(
-      "AUTO SEARCH"
-    );
-
-    console.log(
-      "DATE RANGE:",
-      dates
-    );
-
-    console.log(
-      "===================================="
-    );
-
-
-    // Đồng bộ lại ngày mặc định
-
-    setFrom(
-      dates.from
-    );
-
-    setTo(
-      dates.to
-    );
-
-
-    setSearchedAccount(
-      ""
-    );
-
-    setSearchedRoleType(
-      ""
-    );
-
-    setRoleType(
-      ""
-    );
-
-    setSearchedFrom(
-      dates.from
-    );
-
-    setSearchedTo(
-      dates.to
-    );
-
-
-    // =====================================================
-    // GỌI API NGAY
-    // =====================================================
-
-    loadReports(
-      0,
-      "",
-      dates.from,
-      dates.to,
-      ""
-    );
-
-  }, [loadReports]);
-
-
-  // =======================================================
-  // SEARCH
-  // =======================================================
-
-  async function handleSearch() {
-
-    console.log(
-      "USER CLICK SEARCH"
-    );
-
-
-    // -----------------------------------------------------
-    // VALIDATE
-    // -----------------------------------------------------
-
-    if (!from || !to) {
-
-      setError(
-        "Vui lòng chọn khoảng thời gian."
-      );
-
+  const handleExport = async () => {
+    if (!range.from || !range.to || range.from > range.to) {
+      toast.error("Khoảng thời gian không hợp lệ.");
       return;
     }
-
-
-    if (from > to) {
-
-      setError(
-        "Ngày bắt đầu không được lớn hơn ngày kết thúc."
-      );
-
-      return;
-    }
-
-
-    // -----------------------------------------------------
-    // SAVE SEARCH
-    // -----------------------------------------------------
-
-    setSearchedAccount(
-      accountFilter
-    );
-
-    setSearchedRoleType(
-      roleType
-    );
-
-    setSearchedFrom(
-      from
-    );
-
-    setSearchedTo(
-      to
-    );
-
-
-    setPage(0);
-
-
-    // -----------------------------------------------------
-    // CALL API
-    // -----------------------------------------------------
-
-    await loadReports(
-      0,
-      accountFilter,
-      from,
-      to,
-      roleType
-    );
-  }
-// =======================================================
-// EXPORT EXCEL
-// =======================================================
-
-async function handleExportExcel() {
-
-  try {
-
-    // -----------------------------------------------------
-    // VALIDATE DATE
-    // -----------------------------------------------------
-
-    if (!searchedFrom || !searchedTo) {
-
-      setError(
-        "Vui lòng chọn khoảng thời gian."
-      );
-
-      return;
-    }
-
-
-    if (searchedFrom > searchedTo) {
-
-      setError(
-        "Ngày bắt đầu không được lớn hơn ngày kết thúc."
-      );
-
-      return;
-    }
-
-
-    // -----------------------------------------------------
-    // START EXPORT
-    // -----------------------------------------------------
-
     setExporting(true);
-
-    setError("");
-
-
-    // -----------------------------------------------------
-    // IMPORT SERVICE
-    // -----------------------------------------------------
-
-
-
-    // -----------------------------------------------------
-    // CALL API
-    // -----------------------------------------------------
-
-    const blob =
-      await exportAccountReports(
-        searchedFrom,
-        searchedTo
-      );
-
-
-    // -----------------------------------------------------
-    // CREATE DOWNLOAD URL
-    // -----------------------------------------------------
-
-    const url =
-      window.URL.createObjectURL(
-        new Blob(
-          [blob],
-          {
-            type:
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          }
-        )
-      );
-
-
-    // -----------------------------------------------------
-    // CREATE DOWNLOAD LINK
-    // -----------------------------------------------------
-
-    const link =
-      document.createElement("a");
-
-    link.href = url;
-
-    link.download =
-      `bao-cao-${searchedFrom}-${searchedTo}.xlsx`;
-
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    link.remove();
-
-
-    // -----------------------------------------------------
-    // CLEAN URL
-    // -----------------------------------------------------
-
-    window.URL.revokeObjectURL(url);
-
-  } catch (err: any) {
-
-    console.error(
-      "EXPORT EXCEL ERROR:",
-      err
-    );
-
-
-    setError(
-      err?.response?.data?.message ||
-      "Không thể xuất báo cáo Excel."
-    );
-
-  } finally {
-
-    setExporting(false);
-
-  }
-}
-
-  // =======================================================
-  // PAGINATION
-  // =======================================================
-
-  async function handlePageChange(
-    newPage: number
-  ) {
-
-    console.log(
-      "CHANGE REPORT PAGE:",
-      newPage
-    );
-
-
-    if (
-      newPage < 0
-    ) {
-      return;
+    try {
+      const blob = await exportAccountReports(range.from, range.to);
+      downloadBlob(blob, `bao-cao-${range.from}-${range.to}.xlsx`);
+      toast.success("Đã xuất file Excel báo cáo.");
+    } catch (e) {
+      toast.error(await errorMessage(e, "Không thể xuất Excel."));
+    } finally {
+      setExporting(false);
     }
+  };
 
+  const filtered = useMemo(() => {
+    const list = onlyTraded ? rows.filter((r) => Number(r.totalTrades) > 0) : rows.slice();
+    const dir = sort.dir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      if (sort.key === "account") return a.account.localeCompare(b.account) * dir;
+      return (Number(a[sort.key] ?? 0) - Number(b[sort.key] ?? 0)) * dir;
+    });
+    return list;
+  }, [rows, onlyTraded, sort]);
 
-    if (
-      totalPages > 0 &&
-      newPage >= totalPages
-    ) {
-      return;
+  const totals = useMemo(() => {
+    const t = { balance: 0, profit: 0, bot: 0, trades: 0, wins: 0, online: 0 };
+    for (const r of rows) {
+      t.balance += Number(r.balance || 0);
+      t.profit += Number(r.profit || 0);
+      t.bot += Number(r.autoBotProfit || 0);
+      t.trades += Number(r.totalTrades || 0);
+      t.wins += Number(r.winTrades || 0);
+      if (r.botStatus === "ONLINE") t.online += 1;
     }
+    return t;
+  }, [rows]);
 
+  const paged = filtered.slice(page * size, page * size + size);
+  const totalPages = Math.ceil(filtered.length / size);
+  const maxAbs = Math.max(1, ...filtered.map((r) => Math.abs(Number(r.profit || 0))));
 
-    await loadReports(
-      newPage,
-      searchedAccount,
-      searchedFrom,
-      searchedTo,
-      searchedRoleType
-    );
-  }
+  const toggleSort = (key: SortKey) =>
+    setSort((s) => (s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" }));
 
-
-  // =======================================================
-  // STATISTICS
-  // =======================================================
-
-  const totalBalance =
-    rows.reduce(
-      (
-        sum,
-        account
-      ) =>
-        sum +
-        Number(
-          account.balance || 0
-        ),
-      0
+  const SortIcon = ({ k }: { k: SortKey }) =>
+    sort.key !== k ? (
+      <ArrowDownUp size={12} className="opacity-40" />
+    ) : sort.dir === "asc" ? (
+      <ChevronUp size={13} className="text-gold" />
+    ) : (
+      <ChevronDown size={13} className="text-gold" />
     );
 
-
-  const totalProfit =
-    rows.reduce(
-      (
-        sum,
-        account
-      ) =>
-        sum +
-        Number(
-          account.profit || 0
-        ),
-      0
-    );
-    const totalAutoBotProfit = rows.reduce(
-  (sum, account) => sum + Number(account.autoBotProfit || 0),
-  0
-);
-
-
-  const totalTrades =
-    rows.reduce(
-      (
-        sum,
-        account
-      ) =>
-        sum +
-        Number(
-          account.totalTrades || 0
-        ),
-      0
-    );
-
-
-  // =======================================================
-  // RENDER
-  // =======================================================
+  const Th = ({ k, children, right = false }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
+    <th className={cn("whitespace-nowrap px-5 py-3 font-medium", right && "text-right")}>
+      <button
+        type="button"
+        onClick={() => toggleSort(k)}
+        className={cn("inline-flex items-center gap-1 uppercase tracking-wider hover:text-fg", right && "flex-row-reverse")}
+      >
+        {children}
+        <SortIcon k={k} />
+      </button>
+    </th>
+  );
 
   return (
-
-    <div className="mx-auto max-w-[1500px]">
-
-
-      {/* ===================================================
-          HEADER
-      =================================================== */}
-
+    <div>
       <PageHeader
+        eyebrow="Báo cáo"
         title="Báo cáo thống kê"
-        description="Theo dõi số dư và hiệu quả giao dịch theo tài khoản"
+        description={`Lợi nhuận theo tài khoản từ ${searched.from.split("-").reverse().join("/")} đến ${searched.to
+          .split("-")
+          .reverse()
+          .join("/")}.`}
       >
-
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-
-          <CalendarDays
-            size={15}
-          />
-
-          {searchedFrom}
-
-          {" → "}
-
-          {searchedTo}
-
-        </div>
-
+        <Button variant="gold" icon={<FileSpreadsheet size={16} />} loading={exporting} onClick={handleExport}>
+          Xuất Excel
+        </Button>
       </PageHeader>
 
+      {error && <ErrorBanner message={error} onClose={() => setError("")} />}
 
-      {/* ===================================================
-          FILTER
-      =================================================== */}
-
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-
-        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_auto]">
-
-
-          {/* ACCOUNT */}
-
-          <div className="relative">
-
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              size={10}
-            />
-
-
-            <input
-              value={accountFilter}
-              onChange={(e) =>
-                setAccountFilter(
-                  e.target.value
-                )
-              }
-              placeholder="Tìm tài khoản..."
-              className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500"
-            />
-            
-          </div>
-          <div className="relative">
-            <select
-              value={roleType}
-              onChange={(e) =>
-                setRoleType(
-                  e.target.value
-                )
-              }
-              className="h-11 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-3 text-sm outline-none focus:border-blue-500"
-            >
-              <option value="">Tất cả</option>
-              <option value="02">Nội bộ</option>
-              <option value="03">Khách hàng</option>
-            </select>
-          </div>
-
-
-          {/* FROM */}
-
-          <input
-            type="date"
-            value={from}
-            onChange={(e) =>
-              setFrom(
-                e.target.value
-              )
-            }
-            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
+      <Card className="mb-5 p-4">
+        <form onSubmit={submit} className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
+          <DateRange
+            from={range.from}
+            to={range.to}
+            onChange={(r) => {
+              setRange(r);
+              if (r.from && r.to && r.from <= r.to) load(r, query.trim(), roleType);
+            }}
           />
-
-
-          {/* TO */}
-
-          <input
-            type="date"
-            value={to}
-            onChange={(e) =>
-              setTo(
-                e.target.value
-              )
-            }
-            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-          />
-
-
-          {/* SEARCH */}
-
-          <button
-            type="button"
-            disabled={loading}
-            onClick={handleSearch}
-            className="flex h-11 items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-
-            {loading ? (
-
-              <Loader2
-                size={16}
-                className="animate-spin"
-              />
-
-            ) : (
-
-              <Search
-                size={16}
-              />
-
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {admin && (
+              <Select
+                value={roleType}
+                onChange={(e) => {
+                  setRoleType(e.target.value);
+                  load(range, query.trim(), e.target.value);
+                }}
+                className="sm:w-40"
+              >
+                {ROLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
             )}
+            <Input
+              icon={<Search size={16} />}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Tài khoản hoặc họ tên..."
+              wrapperClassName="sm:w-64"
+            />
+            <Button type="submit" variant="primary" loading={loading}>
+              Xem báo cáo
+            </Button>
+          </div>
+        </form>
+      </Card>
 
-            Tìm kiếm
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard accent label="Tổng số dư hiện tại" value={money(totals.balance)} sub={`${rows.length} tài khoản`} icon={CircleDollarSign} loading={loading} />
+        <StatCard
+          label="Lợi nhuận trong kỳ"
+          value={signed(totals.profit)}
+          positive={totals.profit >= 0}
+          sub={`${num(totals.trades, 0)} lệnh · win ${percent(totals.trades ? (totals.wins / totals.trades) * 100 : 0)}`}
+          icon={totals.profit >= 0 ? TrendingUp : TrendingDown}
+          loading={loading}
+        />
+        <StatCard
+          label="Lợi nhuận do bot"
+          value={signed(totals.bot)}
+          positive={totals.bot >= 0}
+          sub="Lệnh bot tự vào"
+          icon={Bot}
+          loading={loading}
+        />
+        <StatCard
+          label="Lợi nhuận thủ công"
+          value={signed(totals.profit - totals.bot)}
+          positive={totals.profit - totals.bot >= 0}
+          sub={`${totals.online} bot đang online`}
+          icon={Hand}
+          loading={loading}
+        />
+      </div>
 
-          </button>
-          <button
-              type="button"
-              disabled={
-                loading ||
-                exporting ||
-                !searchedFrom ||
-                !searchedTo
-              }
-              onClick={handleExportExcel}
-              className="flex h-11 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-[15px] font-semibold text-fg">Thống kê theo tài khoản</h3>
+            <p className="mt-0.5 text-xs text-muted">Bấm vào tài khoản để xem toàn bộ giao dịch trong kỳ.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-line px-3 py-2 text-xs text-muted">
+              <input type="checkbox" checked={onlyTraded} onChange={(e) => { setOnlyTraded(e.target.checked); setPage(0); }} className="accent-[#d8a63a]" />
+              Chỉ tài khoản có giao dịch
+            </label>
+            <Select
+              value={`${sort.key}:${sort.dir}`}
+              onChange={(e) => {
+                const [key, dir] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+                setSort({ key, dir });
+              }}
+              className="h-9 w-48 text-xs"
             >
-
-              {exporting ? (
-
-                <Loader2
-                  size={16}
-                  className="animate-spin"
-                />
-
-              ) : (
-
-                <span>
-                  ↓
-                </span>
-
-              )}
-
-              {exporting
-                ? "Đang xuất..."
-                : "Export Excel"
-              }
-
-            </button>
-
+              {SORTS.flatMap((s) => [
+                <option key={`${s.key}:desc`} value={`${s.key}:desc`}>
+                  {s.label} ↓
+                </option>,
+                <option key={`${s.key}:asc`} value={`${s.key}:asc`}>
+                  {s.label} ↑
+                </option>,
+              ])}
+            </Select>
+          </div>
         </div>
-
-      </div>
-
-
-      {/* ===================================================
-          ERROR
-      =================================================== */}
-
-      {error && (
-
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-
-          {error}
-
-        </div>
-
-      )}
-
-
-      {/* ===================================================
-          STAT CARDS
-      =================================================== */}
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-
-
-        <StatCard
-          label="Số dư hiện tại"
-          value={money(
-            totalBalance
-          )}
-          sub={`Đang hiển thị ${rows.length} tài khoản`}
-          icon={BarChart3}
-        />
-
-
-        <StatCard
-  label="Lợi nhuận trong kỳ"
-  value={money(totalProfit)}
-  sub={`${searchedFrom} → ${searchedTo}`}
-  positive={totalProfit >= 0}
-  icon={totalProfit >= 0 ? TrendingUp : TrendingDown}
-/>
-
-<StatCard
-  label="Lợi nhuận trong kỳ do bot"
-  value={money(totalAutoBotProfit)}
-  sub={`${searchedFrom} → ${searchedTo}`}
-  positive={totalAutoBotProfit >= 0}
-  icon={
-    totalAutoBotProfit >= 0
-      ? TrendingUp
-      : TrendingDown
-  }
-/>
-
-
-        <StatCard
-          label="Tổng giao dịch"
-          value={String(
-            totalTrades
-          )}
-          sub={`Tổng ${totalElements} tài khoản`}
-          icon={CalendarDays}
-        />
-
-      </div>
-
-
-      {/* ===================================================
-          TABLE
-      =================================================== */}
-
-      <div className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
-
-
-        {/* TABLE HEADER */}
-
-        <div className="border-b border-slate-100 px-5 py-4">
-
-          <h3 className="font-semibold text-slate-900">
-
-            Thống kê theo tài khoản
-
-          </h3>
-
-
-          <p className="mt-1 text-xs text-slate-400">
-
-            Bấm vào tài khoản để xem toàn bộ giao dịch
-            trong khoảng thời gian đã chọn.
-
-          </p>
-
-        </div>
-
-
-        {/* TABLE */}
 
         <div className="overflow-x-auto">
-
-          <table className="w-full min-w-[1100px] text-left text-sm">
-
-
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-400">
-
+          <table className="w-full min-w-[1280px] text-left text-sm">
+            <thead className="bg-elev/60 text-[11px] uppercase tracking-wider text-subtle">
               <tr>
-
-                <th className="px-5 py-3 font-medium">
-                  Tài khoản
-                </th>
-                <th className="px-5 py-3 font-medium">
-                  Tên
-                </th>
-                <th className="px-5 py-3 font-medium">
-                  Trạng thái
-                </th>
-                <th className="px-5 py-3 font-medium">
-                  Tình trạng bot
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Số dư hiện tại
-                </th>
-
-                <th className="px-5 py-3 font-medium">
+                <Th k="account">Tài khoản</Th>
+                <th className="whitespace-nowrap px-5 py-3 font-medium">Trạng thái</th>
+                <th className="whitespace-nowrap px-5 py-3 font-medium">Bot</th>
+                <Th k="balance" right>
+                  Số dư
+                </Th>
+                <Th k="profit" right>
                   Lợi nhuận
-                </th>
-                <th className="px-5 py-3 font-medium">
-                  Lợi thực tế do bot
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Win Rate
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Giao dịch
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  License
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                </th>
-
+                </Th>
+                <Th k="autoBotProfit" right>
+                  Do bot
+                </Th>
+                <Th k="winRate">Win rate</Th>
+                <Th k="totalTrades" right>
+                  Lệnh
+                </Th>
+                <Th k="remainingDays">License</Th>
+                <th className="px-5 py-3" />
               </tr>
-
             </thead>
-
-
-            <tbody className="divide-y divide-slate-100">
-
-
-              {/* LOADING */}
-
+            <tbody className="divide-y divide-line">
               {loading ? (
-
+                <SkeletonRows rows={8} cols={10} />
+              ) : paged.length === 0 ? (
                 <tr>
-
-                  <td
-                    colSpan={8}
-                    className="px-5 py-14 text-center text-slate-400"
-                  >
-
-                    <div className="flex items-center justify-center gap-2">
-
-                      <Loader2
-                        size={18}
-                        className="animate-spin"
-                      />
-
-                      Đang tải báo cáo...
-
-                    </div>
-
+                  <td colSpan={10}>
+                    <EmptyState title="Không có dữ liệu" description="Không có tài khoản phù hợp trong khoảng thời gian này." />
                   </td>
-
                 </tr>
-
-
-              ) : rows.length === 0 ? (
-
-                <tr>
-
-                  <td
-                    colSpan={8}
-                    className="px-5 py-14 text-center text-slate-400"
-                  >
-
-                    Không có tài khoản có giao dịch
-                    trong khoảng thời gian này.
-
-                  </td>
-
-                </tr>
-
-
               ) : (
-
-                rows.map(
-                  (
-                    account
-                  ) => (
-
-                    <tr
-                      key={
-                        account.account
-                      }
-                      className="hover:bg-slate-50"
-                    >
-
-
-                      {/* ACCOUNT */}
-
-                      <td className="px-5 py-4">
-
-                        <div className="font-semibold text-slate-800">
-
-                          {account.account}
-
-                        </div>
-
-                      </td>
-                      <td className="px-5 py-4">
-
-                        <div className="font-semibold text-slate-800">
-
-                          {account.fullname}
-
-                        </div>
-
-                      </td>
-
-
-                      {/* STATUS */}
-
-                      <td className="px-5 py-4">
-
-                        {account.status ===
-                        "01" ? (
-
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-
-                            Đang hoạt động
-
-                          </span>
-
-                        ) : (
-
-                          <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
-
-                            Bị khóa
-
-                          </span>
-
-                        )}
-
-                      </td>
-                      <td className="px-5 py-4">
-
-                        {account.botStatus ===
-                        "ONLINE" ? (
-
-                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-
-                            ONLINE
-
-                          </span>
-
-                        ) : (
-
-                          <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
-
-                            KHÔNG CÓ KẾT NỐI
-
-                          </span>
-
-                        )}
-
-                      </td>
-
-
-                      {/* BALANCE */}
-
-                      <td className="px-5 py-4 font-medium text-slate-800">
-
-                        {money(
-                          account.balance
-                        )}
-
-                      </td>
-
-
-                      {/* PROFIT */}
-
-                      <td
-                        className={`px-5 py-4 font-semibold ${
-                          Number(
-                            account.profit || 0
-                          ) >= 0
-                            ? "text-emerald-600"
-                            : "text-red-500"
-                        }`}
-                      >
-
-                        {money(
-                          account.profit
-                        )}
-
-                      </td>
-                      <td
-                        className={`px-5 py-4 font-semibold ${
-                          Number(account.autoBotProfit || 0) >= 0
-                            ? "text-emerald-600"
-                            : "text-red-500"
-                        }`}
-                      >
-                        {money(account.autoBotProfit)}
-                      </td>
-
-
-                      {/* WIN RATE */}
-
-                      <td className="px-5 py-4 text-slate-600">
-
-                        {Number(
-                          account.winRate || 0
-                        ).toFixed(1)}
-
-                        %
-
-                      </td>
-
-
-                      {/* TRADES */}
-
-                      <td className="px-5 py-4 text-slate-600">
-
-                        {account.totalTrades}
-
-                      </td>
-
-
-                      {/* LICENSE */}
-
-                      <td className="px-5 py-4">
-
-                        {account.remainingDays !==
-                        undefined ? (
-
-                          <div>
-
-                            <div
-                              className={`font-medium ${
-                                account.remainingDays <= 0
-                                  ? "text-red-500"
-                                  : account.remainingDays <= 7
-                                    ? "text-amber-600"
-                                    : "text-slate-700"
-                              }`}
-                            >
-
-                              {account.remainingDays <=
-                              0
-                                ? "Đã hết hạn"
-                                : `Còn ${account.remainingDays} ngày`}
-
-                            </div>
-
-
-                            {account.licenseExpiredDt && (
-
-                              <div className="mt-0.5 text-[11px] text-slate-400">
-
-                                {new Date(
-                                  account.licenseExpiredDt
-                                ).toLocaleDateString(
-                                  "vi-VN"
-                                )}
-
-                              </div>
-
-                            )}
-
-                          </div>
-
-                        ) : (
-
-                          "-"
-
-                        )}
-
-                      </td>
-
-
-                      {/* DETAIL */}
-
-                      <td className="px-5 py-4">
-
-                        <Link
-                          href={`/reports/accounts/${encodeURIComponent(
-                            account.account
-                          )}?from=${searchedFrom}&to=${searchedTo}`}
-                          className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50"
-                        >
-
-                          Chi tiết
-
-                          <ChevronRight
-                            size={14}
-                          />
-
+                paged.map((a) => {
+                  const href = `/reports/accounts/${encodeURIComponent(a.account)}?from=${searched.from}&to=${searched.to}`;
+                  const p = Number(a.profit || 0);
+                  const days = Number(a.remainingDays ?? 0);
+                  return (
+                    <tr key={a.account} className="group transition hover:bg-elev/50">
+                      <td className="px-5 py-3.5">
+                        <Link href={href} className="block">
+                          <p className="num font-semibold text-fg group-hover:text-gold">{a.account}</p>
+                          <p className="text-xs text-muted">
+                            {a.fullname || "—"}
+                            {a.role && <span className="text-subtle"> · {ROLE_LABEL[a.role] || a.role}</span>}
+                            {a.typeMoney === "USD" && <span className="text-subtle"> · USD→USC</span>}
+                          </p>
                         </Link>
-
                       </td>
-
+                      <td className="px-5 py-3.5">
+                        <Badge tone={a.status === "01" ? "up" : "down"} dot>
+                          {a.status === "01" ? "Hoạt động" : "Bị khóa"}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <Badge tone={a.botStatus === "ONLINE" ? "up" : "neutral"} dot pulse={a.botStatus === "ONLINE"}>
+                          {a.botStatus === "ONLINE" ? "Online" : "Mất kết nối"}
+                        </Badge>
+                        <p className="mt-1 text-[11px] text-subtle">{timeAgo(a.onlineDate)}</p>
+                      </td>
+                      <td className="num px-5 py-3.5 text-right font-semibold text-fg">{money(a.balance)}</td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Money value={p} />
+                        <div className="ml-auto mt-1.5 h-1 w-24 overflow-hidden rounded-full bg-elev">
+                          <div
+                            className={cn("h-full rounded-full", p >= 0 ? "ml-auto bg-up" : "bg-down")}
+                            style={{ width: `${(Math.abs(p) / maxAbs) * 100}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Money value={a.autoBotProfit} />
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="num text-sm font-semibold text-fg">{percent(a.winRate)}</span>
+                        <p className="num text-[11px] text-subtle">
+                          {num(a.winTrades, 0)}W · {num(Number(a.totalTrades) - Number(a.winTrades), 0)}L
+                        </p>
+                      </td>
+                      <td className="num px-5 py-3.5 text-right text-fg">{num(a.totalTrades, 0)}</td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn("text-xs font-semibold", days <= 0 ? "text-down" : days <= 7 ? "text-warn" : "text-up")}>
+                          {days <= 0 ? "Hết hạn" : `${days} ngày`}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <Link
+                          href={href}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-elev hover:text-gold"
+                          title="Xem giao dịch"
+                        >
+                          <ArrowUpRight size={16} />
+                        </Link>
+                      </td>
                     </tr>
-
-                  )
-                )
-
+                  );
+                })
               )}
-
             </tbody>
-
+            {!loading && filtered.length > 0 && (
+              <tfoot className="border-t-2 border-line bg-elev/60 text-sm">
+                <tr>
+                  <td className="px-5 py-3.5 font-semibold text-fg" colSpan={3}>
+                    Tổng ({filtered.length} tài khoản)
+                  </td>
+                  <td className="num px-5 py-3.5 text-right font-semibold text-fg">
+                    {money(filtered.reduce((s, r) => s + Number(r.balance || 0), 0))}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <Money value={filtered.reduce((s, r) => s + Number(r.profit || 0), 0)} />
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <Money value={filtered.reduce((s, r) => s + Number(r.autoBotProfit || 0), 0)} />
+                  </td>
+                  <td />
+                  <td className="num px-5 py-3.5 text-right font-semibold text-fg">
+                    {num(filtered.reduce((s, r) => s + Number(r.totalTrades || 0), 0), 0)}
+                  </td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
           </table>
-
         </div>
 
-
-        {/* =================================================
-            PAGINATION
-        ================================================= */}
-
-        {totalPages > 0 && (
-
-          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4">
-
-
-            <div className="text-sm text-slate-500">
-
-              Tổng{" "}
-
-              <span className="font-medium text-slate-700">
-
-                {totalElements}
-
-              </span>
-
-              {" "}tài khoản
-
-            </div>
-
-
-            <div className="flex items-center gap-2">
-
-
-              {/* PREVIOUS */}
-
-              <button
-                type="button"
-                disabled={
-                  loading ||
-                  page === 0
-                }
-                onClick={() =>
-                  handlePageChange(
-                    page - 1
-                  )
-                }
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-
-                Trước
-
-              </button>
-
-
-              {/* PAGE */}
-
-              <div className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white">
-
-                {page + 1}
-
-                {" / "}
-
-                {totalPages}
-
-              </div>
-
-
-              {/* NEXT */}
-
-              <button
-                type="button"
-                disabled={
-                  loading ||
-                  page >=
-                    totalPages - 1
-                }
-                onClick={() =>
-                  handlePageChange(
-                    page + 1
-                  )
-                }
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-
-                Sau
-
-              </button>
-
-            </div>
-
-          </div>
-
-        )}
-
-      </div>
-
+        <Pagination
+          page={page}
+          size={size}
+          totalPages={totalPages}
+          totalElements={filtered.length}
+          unit="tài khoản"
+          sizes={[20, 50, 100]}
+          onPage={setPage}
+          onSize={(s) => {
+            setSize(s);
+            setPage(0);
+          }}
+        />
+      </Card>
     </div>
   );
 }

@@ -1,1946 +1,714 @@
 "use client";
 
+import Link from "next/link";
 import {
+  BarChart3,
   CalendarClock,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  MoreHorizontal,
+  Eye,
+  Pencil,
+  Plus,
+  RefreshCw,
   Search,
   ShieldBan,
   ShieldCheck,
-  X,
+  UserPlus,
+  Users,
 } from "lucide-react";
-
-import {
-  useEffect,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useSession } from "@/components/providers/SessionProvider";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Field, Input, Select } from "@/components/ui/Input";
+import Modal from "@/components/ui/Modal";
+import Money from "@/components/ui/Money";
 import PageHeader from "@/components/ui/PageHeader";
-
+import Pagination from "@/components/ui/Pagination";
+import Segmented from "@/components/ui/Segmented";
+import { EmptyState, ErrorBanner, SkeletonRows } from "@/components/ui/States";
+import { useToast } from "@/components/ui/Toast";
+import { isAdmin } from "@/lib/auth";
+import { errorMessage } from "@/lib/axios";
+import { ROLE_LABEL, ROLE_OPTIONS } from "@/lib/constants";
+import { dateTimeVN, dateVN, money, num, percent, timeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
-  getAccounts,
   blockAccount,
-  unblockAccount,
+  createAccount,
+  getAccounts,
   renewAccount,
-  type AccountListResponse,
+  unblockAccount,
+  updateAccount,
 } from "@/services/account.service";
+import type { AccountForm, AccountListResponse } from "@/types/api";
 
+type ModalKind = "detail" | "block" | "renew" | "edit" | "create" | null;
 
-// =========================================================
-// PAGE
-// =========================================================
+const STATUS_TABS = [
+  { value: "", label: "Tất cả" },
+  { value: "01", label: "Hoạt động" },
+  { value: "00", label: "Đã khóa" },
+];
+
+const RENEW_PRESETS = [7, 30, 90, 180, 365];
+
+function LicenseCell({ days, expired }: { days: number; expired?: string | null }) {
+  const tone = days <= 0 ? "text-down" : days <= 7 ? "text-down" : days <= 30 ? "text-warn" : "text-up";
+  const bar = days <= 0 ? "bg-down" : days <= 7 ? "bg-down" : days <= 30 ? "bg-warn" : "bg-up";
+  const pct = Math.max(4, Math.min(100, (days / 90) * 100));
+  return (
+    <div className="w-28">
+      <p className={cn("text-[13px] font-semibold", tone)}>{days <= 0 ? "Đã hết hạn" : `Còn ${days} ngày`}</p>
+      <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-elev">
+        <div className={cn("h-full rounded-full", bar)} style={{ width: days <= 0 ? "100%" : `${pct}%` }} />
+      </div>
+      <p className="mt-1 text-[11px] text-subtle">{expired ? dateVN(expired) : "Chưa có license"}</p>
+    </div>
+  );
+}
+
+function BotCell({ status, online }: { status?: string; online?: string | null }) {
+  const on = status === "ONLINE";
+  return (
+    <div>
+      <Badge tone={on ? "up" : "neutral"} dot pulse={on}>
+        {on ? "Online" : "Offline"}
+      </Badge>
+      <p className="mt-1 text-[11px] text-subtle">{timeAgo(online)}</p>
+    </div>
+  );
+}
 
 export default function AccountsPage() {
+  const toast = useToast();
+  const { user } = useSession();
+  const admin = isAdmin(user);
 
-  // =======================================================
-  // DATA
-  // =======================================================
+  const [accounts, setAccounts] = useState<AccountListResponse[]>([]);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [query, setQuery] = useState("");
+  const [keyword, setKeyword] = useState("");
+  const [status, setStatus] = useState("");
+  const [roleType, setRoleType] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [
-    accounts,
-    setAccounts
-  ] = useState<AccountListResponse[]>([]);
+  const [selected, setSelected] = useState<AccountListResponse | null>(null);
+  const [modal, setModal] = useState<ModalKind>(null);
+  const [busy, setBusy] = useState(false);
+  const [days, setDays] = useState("30");
+  const [form, setForm] = useState<AccountForm>({});
 
-
-  // =======================================================
-  // PAGINATION
-  // =======================================================
-
-  const [
-    page,
-    setPage
-  ] = useState(0);
-
-  const [
-    size,
-    setSize
-  ] = useState(10);
-
-  const [
-    totalPages,
-    setTotalPages
-  ] = useState(0);
-
-  const [
-    totalElements,
-    setTotalElements
-  ] = useState(0);
-
-
-  // =======================================================
-  // SEARCH
-  // =======================================================
-
-  const [
-    query,
-    setQuery
-  ] = useState("");
-
-  const [
-    searchKeyword,
-    setSearchKeyword
-  ] = useState("");
-
-
-  // =======================================================
-  // LOADING
-  // =======================================================
-
-  const [
-    loading,
-    setLoading
-  ] = useState(false);
-
-
-  // =======================================================
-  // ERROR
-  // =======================================================
-
-  const [
-    error,
-    setError
-  ] = useState("");
-
-
-  // =======================================================
-  // SELECTED ACCOUNT
-  // =======================================================
-
-  const [
-    selected,
-    setSelected
-  ] = useState<AccountListResponse | null>(
-    null
-  );
-
-
-  // =======================================================
-  // MODAL
-  // =======================================================
-
-  const [
-    modal,
-    setModal
-  ] = useState<
-    "block" |
-    "renew" |
-    null
-  >(null);
-
-
-  // =======================================================
-  // ACTION LOADING
-  // =======================================================
-
-  const [
-    actionLoading,
-    setActionLoading
-  ] = useState(false);
-
-
-  // =======================================================
-  // RENEW DAYS
-  // =======================================================
-
-  const [
-    days,
-    setDays
-  ] = useState("30");
-
-
-  // =======================================================
-  // LOAD ACCOUNTS
-  // =======================================================
-
-  const loadAccounts = async (
-    targetPage: number,
-    targetSize: number,
-    keyword: string
-  ) => {
-
-    try {
-
+  const load = useCallback(
+    async (p: number, s: number, kw: string, st: string, rt: string) => {
       setLoading(true);
-
       setError("");
-
-
-      console.log(
-        "GET ACCOUNTS:",
-        {
-          page: targetPage,
-          size: targetSize,
-          keyword,
-        }
-      );
-
-
-      const data =
-        await getAccounts(
-          targetPage,
-          targetSize,
-          keyword
-        );
-
-
-      console.log(
-        "GET ACCOUNTS RESPONSE:",
-        data
-      );
-
-
-      setAccounts(
-        data.content || []
-      );
-
-
-      setPage(
-        data.number ?? targetPage
-      );
-
-
-      setSize(
-        data.size ?? targetSize
-      );
-
-
-      setTotalPages(
-        data.totalPages ?? 0
-      );
-
-
-      setTotalElements(
-        data.totalElements ?? 0
-      );
-
-
-    } catch (err: any) {
-
-      console.error(
-        "ACCOUNT API ERROR:",
-        err
-      );
-
-
-      console.error(
-        "ACCOUNT API RESPONSE:",
-        err?.response?.data
-      );
-
-
-      setAccounts([]);
-
-      setTotalPages(0);
-
-      setTotalElements(0);
-
-
-      setError(
-        err?.response?.data?.message ||
-        "Không thể tải danh sách tài khoản."
-      );
-
-
-    } finally {
-
-      setLoading(false);
-
-    }
-
-  };
-
-
-  // =======================================================
-  // INITIAL LOAD
-  // =======================================================
+      try {
+        const data = await getAccounts(p, s, kw, { status: st, roleType: rt });
+        setAccounts(data.content || []);
+        setPage(data.number ?? p);
+        setSize(data.size ?? s);
+        setTotalPages(data.totalPages ?? 0);
+        setTotalElements(data.totalElements ?? 0);
+      } catch (e) {
+        setAccounts([]);
+        setTotalPages(0);
+        setTotalElements(0);
+        setError(await errorMessage(e, "Không thể tải danh sách tài khoản."));
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
+    load(0, 10, "", "", "");
+  }, [load]);
 
-    loadAccounts(
-      0,
-      10,
-      ""
-    );
+  const reload = () => load(page, size, keyword, status, roleType);
 
-  }, []);
-
-
-  // =======================================================
-  // SEARCH
-  // =======================================================
-
-  const handleSearch = () => {
-
-    setSearchKeyword(
-      query
-    );
-
-
-    loadAccounts(
-      0,
-      size,
-      query
-    );
-
+  const search = (e?: FormEvent) => {
+    e?.preventDefault();
+    setKeyword(query.trim());
+    load(0, size, query.trim(), status, roleType);
   };
 
+  const close = () => {
+    if (busy) return;
+    setModal(null);
+    setSelected(null);
+  };
 
-  // =======================================================
-  // SEARCH ENTER
-  // =======================================================
-
-  const handleSearchKeyDown = (
-    event: React.KeyboardEvent<HTMLInputElement>
-  ) => {
-
-    if (
-      event.key === "Enter"
-    ) {
-
-      handleSearch();
-
+  const open = (kind: ModalKind, account: AccountListResponse | null) => {
+    setSelected(account);
+    setModal(kind);
+    if (kind === "renew") setDays("30");
+    if (kind === "edit" && account) {
+      setForm({
+        fullname: account.fullname ?? "",
+        phone: account.phone ?? "",
+        email: account.email ?? "",
+        typeMoney: account.typeMoney ?? "USC",
+        role: account.role ?? "03",
+      });
     }
-
+    if (kind === "create") setForm({ role: "03", typeMoney: "USC", licenseDays: 30 });
   };
 
-
-  // =======================================================
-  // CHANGE PAGE
-  // =======================================================
-
-  const handlePageChange = (
-    targetPage: number
-  ) => {
-
-    if (
-      targetPage < 0 ||
-      targetPage >= totalPages ||
-      loading
-    ) {
-
-      return;
-
-    }
-
-
-    loadAccounts(
-      targetPage,
-      size,
-      searchKeyword
-    );
-
-  };
-
-
-  // =======================================================
-  // CHANGE SIZE
-  // =======================================================
-
-  const handleSizeChange = (
-    newSize: number
-  ) => {
-
-    setSize(
-      newSize
-    );
-
-
-    loadAccounts(
-      0,
-      newSize,
-      searchKeyword
-    );
-
-  };
-
-
-  // =======================================================
-  // BLOCK / UNBLOCK
-  // =======================================================
-
-  const updateStatus = async () => {
-
-    if (!selected) {
-
-      return;
-
-    }
-
-
+  const run = async (fn: () => Promise<unknown>, ok: string, fail: string) => {
+    setBusy(true);
     try {
-
-      setActionLoading(
-        true
-      );
-
-      setError("");
-
-
-      // ================================================
-      // ACCOUNT ĐANG BỊ KHÓA
-      // => UNBLOCK
-      // ================================================
-
-      if (
-        selected.status === "00"
-      ) {
-
-        console.log(
-          "UNBLOCK ACCOUNT:",
-          selected.account
-        );
-
-
-        await unblockAccount(
-          selected.account
-        );
-
-      }
-
-      // ================================================
-      // ACCOUNT ĐANG ACTIVE
-      // => BLOCK
-      // ================================================
-
-      else {
-
-        console.log(
-          "BLOCK ACCOUNT:",
-          selected.account
-        );
-
-
-        await blockAccount(
-          selected.account
-        );
-
-      }
-
-
-      // ================================================
-      // CLOSE MODAL
-      // ================================================
-
+      await fn();
+      toast.success(ok);
       setModal(null);
-
       setSelected(null);
-
-
-      // ================================================
-      // RELOAD CURRENT PAGE
-      // ================================================
-
-      await loadAccounts(
-        page,
-        size,
-        searchKeyword
-      );
-
-
-    } catch (err: any) {
-
-      console.error(
-        "UPDATE ACCOUNT STATUS ERROR:",
-        err
-      );
-
-
-      console.error(
-        "RESPONSE:",
-        err?.response?.data
-      );
-
-
-      setError(
-        err?.response?.data?.message ||
-        "Không thể cập nhật trạng thái tài khoản."
-      );
-
-
+      await reload();
+    } catch (e) {
+      toast.error(await errorMessage(e, fail));
     } finally {
-
-      setActionLoading(
-        false
-      );
-
+      setBusy(false);
     }
-
   };
 
-
-  // =======================================================
-  // RENEW ACCOUNT
-  // =======================================================
-
-  const handleRenew = async () => {
-
-    if (!selected) {
-
-      return;
-
-    }
-
-
-    const renewDays =
-      Number(days);
-
-
-    if (
-      !Number.isFinite(
-        renewDays
-      ) ||
-      renewDays <= 0
-    ) {
-
-      setError(
-        "Số ngày gia hạn phải lớn hơn 0."
-      );
-
-      return;
-
-    }
-
-
-    try {
-
-      setActionLoading(
-        true
-      );
-
-      setError("");
-
-
-      console.log(
-        "RENEW ACCOUNT:",
-        {
-          account: selected.account,
-          days: renewDays,
-        }
-      );
-
-
-      await renewAccount(
-        selected.account,
-        renewDays
-      );
-
-
-      // ================================================
-      // CLOSE MODAL
-      // ================================================
-
-      setModal(null);
-
-      setSelected(null);
-
-
-      // ================================================
-      // RELOAD
-      // ================================================
-
-      await loadAccounts(
-        page,
-        size,
-        searchKeyword
-      );
-
-
-    } catch (err: any) {
-
-      console.error(
-        "RENEW ACCOUNT ERROR:",
-        err
-      );
-
-
-      console.error(
-        "RESPONSE:",
-        err?.response?.data
-      );
-
-
-      setError(
-        err?.response?.data?.message ||
-        "Không thể gia hạn tài khoản."
-      );
-
-
-    } finally {
-
-      setActionLoading(
-        false
-      );
-
-    }
-
-  };
-
-
-  // =======================================================
-  // PAGE NUMBERS
-  // =======================================================
-
-  const getPageNumbers = () => {
-
-    if (
-      totalPages <= 0
-    ) {
-
-      return [];
-
-    }
-
-
-    const pages: number[] = [];
-
-
-    if (
-      totalPages <= 5
-    ) {
-
-      for (
-        let i = 0;
-        i < totalPages;
-        i++
-      ) {
-
-        pages.push(i);
-
-      }
-
-
-      return pages;
-
-    }
-
-
-    let start =
-      Math.max(
-        page - 2,
-        0
-      );
-
-
-    if (
-      start + 5 >
-      totalPages
-    ) {
-
-      start =
-        totalPages - 5;
-
-    }
-
-
-    for (
-      let i = 0;
-      i < 5;
-      i++
-    ) {
-
-      pages.push(
-        start + i
-      );
-
-    }
-
-
-    return pages;
-
-  };
-
-
-  // =======================================================
-  // MONEY
-  // =======================================================
-
-  const money = (
-    value: number | null | undefined
-  ) => {
-
-    const number =
-      Number(
-        value ?? 0
-      );
-
-
-    return (
-      `${number >= 0 ? "+" : "-"}$` +
-      Math.abs(
-        number
-      ).toLocaleString(
-        "en-US",
-        {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        }
-      )
-    );
-
-  };
-
-
-  // =======================================================
-  // RENDER
-  // =======================================================
+  const renewDays = Number(days);
+  const renewPreview = useMemo(() => {
+    if (!selected || !Number.isFinite(renewDays) || renewDays <= 0) return null;
+    const now = Date.now();
+    const cur = selected.licenseExpiredDt ? new Date(selected.licenseExpiredDt).getTime() : 0;
+    const base = cur > now ? cur : now;
+    return new Date(base + renewDays * 86400000);
+  }, [selected, renewDays]);
+
+  const pageStats = useMemo(() => {
+    const online = accounts.filter((a) => a.botStatus === "ONLINE").length;
+    const balance = accounts.reduce((s, a) => s + Number(a.balance || 0), 0);
+    return { online, balance };
+  }, [accounts]);
 
   return (
-
-    <div className="mx-auto max-w-[1500px]">
-
-
-      {/* ===================================================
-          HEADER
-      =================================================== */}
-
+    <div>
       <PageHeader
-        title="Quản lý tài khoản"
-        description="Tìm kiếm, khóa và gia hạn tài khoản sử dụng hệ thống"
-      />
+        eyebrow="Quản lý"
+        title="Tài khoản"
+        description="Tìm kiếm, khóa / mở khóa, gia hạn license và tạo mới tài khoản MT5."
+      >
+        <Button variant="secondary" size="icon" onClick={reload} title="Làm mới" disabled={loading}>
+          <RefreshCw size={16} className={cn(loading && "animate-spin")} />
+        </Button>
+        <Button variant="gold" icon={<Plus size={16} />} onClick={() => open("create", null)}>
+          Thêm tài khoản
+        </Button>
+      </PageHeader>
 
+      {error && <ErrorBanner message={error} onClose={() => setError("")} />}
 
-      {/* ===================================================
-          ERROR
-      =================================================== */}
-
-      {error && (
-
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-
-          <p className="text-sm text-red-600">
-
-            {error}
-
-          </p>
-
-
-          <button
-            type="button"
-            onClick={() =>
-              setError("")
-            }
-            className="text-red-400 hover:text-red-600"
-          >
-
-            <X size={17} />
-
-          </button>
-
-        </div>
-
-      )}
-
-
-      {/* ===================================================
-          MAIN
-      =================================================== */}
-
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-
-
-        {/* =================================================
-            HEADER / SEARCH
-        ================================================= */}
-
-        <div className="flex flex-col gap-4 border-b border-slate-100 p-5 lg:flex-row lg:items-center lg:justify-between">
-
-
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <div className="card flex items-center gap-4 p-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gold-soft text-gold">
+            <Users size={20} />
+          </div>
           <div>
-
-            <p className="text-sm font-semibold text-slate-800">
-
-              Danh sách tài khoản
-
+            <p className="text-xs text-muted">Tổng theo bộ lọc</p>
+            <p className="num text-xl font-semibold text-fg">{num(totalElements, 0)}</p>
+          </div>
+        </div>
+        <div className="card flex items-center gap-4 p-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-up-soft text-up">
+            <span className="h-2.5 w-2.5 rounded-full bg-up pulse-dot" />
+          </div>
+          <div>
+            <p className="text-xs text-muted">Bot online (trang này)</p>
+            <p className="num text-xl font-semibold text-fg">
+              {pageStats.online}
+              <span className="text-sm text-subtle"> / {accounts.length}</span>
             </p>
-
-
-            <p className="mt-1 text-xs text-slate-400">
-
-              Tổng cộng{" "}
-
-              <span className="font-medium text-slate-600">
-
-                {totalElements}
-
-              </span>
-
-              {" "}tài khoản
-
-            </p>
-
           </div>
-
-
-          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
-
-
-            {/* SEARCH */}
-
-            <div className="relative">
-
-              <Search
-                size={17}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-              />
-
-
-              <input
-                type="text"
-                value={query}
-                onChange={(event) =>
-                  setQuery(
-                    event.target.value
-                  )
-                }
-                onKeyDown={
-                  handleSearchKeyDown
-                }
-                placeholder="Tìm tài khoản..."
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-500 sm:w-64"
-              />
-
-            </div>
-
-
-            <button
-              type="button"
-              onClick={handleSearch}
-              disabled={loading}
-              className="h-10 rounded-lg bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-
-              {loading
-                ? "Đang tìm..."
-                : "Tìm kiếm"}
-
-            </button>
-
-          </div>
-
         </div>
-
-
-        {/* =================================================
-            TABLE
-        ================================================= */}
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full min-w-[1200px] text-left text-sm">
-
-
-            {/* HEADER */}
-
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-400">
-
-              <tr>
-
-                <th className="px-5 py-3 font-medium">
-                  STT
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Tài khoản
-                </th>
-                <th className="px-5 py-3 font-medium">
-                  Họ và tên
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Số dư
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Lợi nhuận
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Giao dịch
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Win Rate
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Trạng thái
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  License
-                </th>
-
-                <th className="px-5 py-3 font-medium">
-                  Thao tác
-                </th>
-
-              </tr>
-
-            </thead>
-
-
-            {/* BODY */}
-
-            <tbody className="divide-y divide-slate-100">
-
-
-              {/* LOADING */}
-
-              {loading ? (
-
-                <tr>
-
-                  <td
-                    colSpan={9}
-                    className="px-5 py-14 text-center text-slate-400"
-                  >
-
-                    <div className="flex items-center justify-center gap-2">
-
-                      <Loader2
-                        size={18}
-                        className="animate-spin"
-                      />
-
-                      Đang tải danh sách tài khoản...
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              ) : accounts.length === 0 ? (
-
-                <tr>
-
-                  <td
-                    colSpan={9}
-                    className="px-5 py-14 text-center text-sm text-slate-400"
-                  >
-
-                    Không tìm thấy tài khoản.
-
-                  </td>
-
-                </tr>
-
-              ) : (
-
-                accounts.map(
-                  (
-                    account,
-                    index
-                  ) => {
-
-                    const remainingDays =
-                      Number(
-                        account.remainingDays ?? 0
-                      );
-
-
-                    return (
-
-                      <tr
-                        key={account.account}
-                        className="hover:bg-slate-50"
-                      >
-
-
-                        {/* STT */}
-
-                        <td className="px-5 py-4 text-slate-400">
-
-                          {page * size + index + 1}
-
-                        </td>
-
-
-                        {/* ACCOUNT */}
-
-                        <td className="px-5 py-4">
-
-                          <p className="font-semibold text-slate-800">
-
-                            {account.account}
-
-                          </p>
-
-                        </td>
-                        <td className="px-5 py-4">
-
-                          <p className="font-semibold text-slate-800">
-
-                            {account.fullname}
-
-                          </p>
-
-                        </td>
-
-
-                        {/* BALANCE */}
-
-                        <td className="px-5 py-4 font-medium text-slate-800">
-
-                          $
-                          {Number(
-                            account.balance ?? 0
-                          ).toLocaleString(
-                            "en-US",
-                            {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            }
-                          )}
-
-                        </td>
-
-
-                        {/* PROFIT */}
-
-                        <td
-                          className={`px-5 py-4 font-semibold ${
-                            Number(
-                              account.profit ?? 0
-                            ) >= 0
-                              ? "text-emerald-600"
-                              : "text-red-500"
-                          }`}
-                        >
-
-                          {money(
-                            account.profit
-                          )}
-
-                        </td>
-
-
-                        {/* TRADES */}
-
-                        <td className="px-5 py-4 text-slate-600">
-
-                          {account.totalTrades ?? 0}
-
-                        </td>
-
-
-                        {/* WIN RATE */}
-
-                        <td className="px-5 py-4 text-slate-600">
-
-                          {Number(
-                            account.winRate ?? 0
-                          ).toFixed(2)}
-
-                          %
-
-                        </td>
-
-
-                        {/* STATUS */}
-
-                        <td className="px-5 py-4">
-
-                          <span
-                            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                              account.status === "01"
-                                ? "bg-emerald-50 text-emerald-700"
-                                : "bg-red-50 text-red-700"
-                            }`}
-                          >
-
-                            {account.status === "01"
-                              ? "Đang hoạt động"
-                              : "Bị khóa"}
-
-                          </span>
-
-                        </td>
-
-
-                        {/* LICENSE */}
-
-                        <td className="px-5 py-4">
-
-                          {remainingDays <= 0 ? (
-
-                            <div>
-
-                              <p className="font-semibold text-red-500">
-
-                                Đã hết hạn
-
-                              </p>
-
-
-                              {account.licenseExpiredDt && (
-
-                                <p className="mt-0.5 text-[11px] text-slate-400">
-
-                                  {new Date(
-                                    account.licenseExpiredDt
-                                  ).toLocaleDateString(
-                                    "vi-VN"
-                                  )}
-
-                                </p>
-
-                              )}
-
-                            </div>
-
-                          ) : (
-
-                            <div>
-
-                              <p
-                                className={`font-semibold ${
-                                  remainingDays <= 7
-                                    ? "text-red-500"
-                                    : remainingDays <= 30
-                                      ? "text-amber-500"
-                                      : "text-emerald-600"
-                                }`}
-                              >
-
-                                Còn {remainingDays} ngày
-
-                              </p>
-
-
-                              {account.licenseExpiredDt && (
-
-                                <p className="mt-0.5 text-[11px] text-slate-400">
-
-                                  Hết hạn{" "}
-
-                                  {new Date(
-                                    account.licenseExpiredDt
-                                  ).toLocaleDateString(
-                                    "vi-VN"
-                                  )}
-
-                                </p>
-
-                              )}
-
-                            </div>
-
-                          )}
-
-                        </td>
-
-
-                        {/* ACTION */}
-
-                        <td className="px-5 py-4">
-
-                          <div className="flex items-center gap-1">
-
-
-                            {/* BLOCK / UNBLOCK */}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-
-                                setSelected(
-                                  account
-                                );
-
-                                setModal(
-                                  "block"
-                                );
-
-                              }}
-                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                              title={
-                                account.status === "00"
-                                  ? "Mở khóa"
-                                  : "Khóa tài khoản"
-                              }
-                            >
-
-                              {account.status === "00"
-                                ? (
-                                  <ShieldCheck
-                                    size={17}
-                                  />
-                                )
-                                : (
-                                  <ShieldBan
-                                    size={17}
-                                  />
-                                )}
-
-                            </button>
-
-
-                            {/* RENEW */}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-
-                                setSelected(
-                                  account
-                                );
-
-                                setDays(
-                                  "30"
-                                );
-
-                                setModal(
-                                  "renew"
-                                );
-
-                              }}
-                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                              title="Gia hạn"
-                            >
-
-                              <CalendarClock
-                                size={17}
-                              />
-
-                            </button>
-
-
-                            {/* DETAIL */}
-
-                            <button
-                              type="button"
-                              onClick={() => {
-
-                                setSelected(
-                                  account
-                                );
-
-                                setModal(
-                                  null
-                                );
-
-                              }}
-                              className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                              title="Chi tiết"
-                            >
-
-                              <MoreHorizontal
-                                size={17}
-                              />
-
-                            </button>
-
-                          </div>
-
-                        </td>
-
-                      </tr>
-
-                    );
-
-                  }
-                )
-
-              )}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-
-        {/* =================================================
-            PAGINATION
-        ================================================= */}
-
-        <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
-
-          <div className="text-xs text-slate-400">
-
-            {totalElements > 0
-              ? `Trang ${page + 1} / ${totalPages} · ${totalElements} tài khoản`
-              : "Không có dữ liệu"}
-
+        <div className="card flex items-center gap-4 p-4">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-info-soft text-info">
+            <BarChart3 size={20} />
           </div>
-
-
-          <div className="flex items-center gap-1">
-
-
-            {/* SIZE */}
-
-            <select
-              value={size}
-              onChange={(event) =>
-                handleSizeChange(
-                  Number(
-                    event.target.value
-                  )
-                )
-              }
-              disabled={loading}
-              className="mr-2 h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-600 outline-none focus:border-blue-500"
-            >
-
-              <option value={10}>
-                10 / trang
-              </option>
-
-              <option value={20}>
-                20 / trang
-              </option>
-
-              <option value={50}>
-                50 / trang
-              </option>
-
-              <option value={100}>
-                100 / trang
-              </option>
-
-            </select>
-
-
-            {/* PREVIOUS */}
-
-            <button
-              type="button"
-              disabled={
-                page <= 0 ||
-                loading ||
-                totalPages === 0
-              }
-              onClick={() =>
-                handlePageChange(
-                  page - 1
-                )
-              }
-              className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-
-              <ChevronLeft
-                size={14}
-              />
-
-              Trước
-
-            </button>
-
-
-            {/* NUMBERS */}
-
-            {getPageNumbers().map(
-              (
-                pageNumber
-              ) => (
-
-                <button
-                  key={pageNumber}
-                  type="button"
-                  onClick={() =>
-                    handlePageChange(
-                      pageNumber
-                    )
-                  }
-                  disabled={loading}
-                  className={`h-9 min-w-9 rounded-lg px-3 text-xs ${
-                    pageNumber === page
-                      ? "bg-slate-900 text-white"
-                      : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-
-                  {pageNumber + 1}
-
-                </button>
-
-              )
-            )}
-
-
-            {/* NEXT */}
-
-            <button
-              type="button"
-              disabled={
-                page >= totalPages - 1 ||
-                loading ||
-                totalPages === 0
-              }
-              onClick={() =>
-                handlePageChange(
-                  page + 1
-                )
-              }
-              className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-
-              Sau
-
-              <ChevronRight
-                size={14}
-              />
-
-            </button>
-
+          <div>
+            <p className="text-xs text-muted">Số dư (trang này)</p>
+            <p className="num text-xl font-semibold text-fg">{money(pageStats.balance)}</p>
           </div>
-
         </div>
-
       </div>
 
-
-      {/* ===================================================
-          DETAIL MODAL
-      =================================================== */}
-
-      {selected &&
-        !modal && (
-
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-            onClick={() =>
-              setSelected(null)
-            }
-          >
-
-            <div
-              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
-            >
-
-              <div className="flex items-center justify-between">
-
-                <h3 className="text-lg font-semibold text-slate-900">
-
-                  Tài khoản{" "}
-
-                  {selected.account}
-
-                </h3>
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelected(null)
-                  }
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                >
-
-                  <X
-                    size={19}
-                  />
-
-                </button>
-
-              </div>
-
-
-              <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    Balance
-                  </p>
-
-                  <p className="mt-1 font-semibold text-slate-800">
-
-                    $
-                    {Number(
-                      selected.balance ?? 0
-                    ).toLocaleString(
-                      "en-US",
-                      {
-                        minimumFractionDigits: 2,
-                      }
-                    )}
-
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    Profit
-                  </p>
-
-                  <p
-                    className={`mt-1 font-semibold ${
-                      Number(
-                        selected.profit ?? 0
-                      ) >= 0
-                        ? "text-emerald-600"
-                        : "text-red-500"
-                    }`}
-                  >
-
-                    {money(
-                      selected.profit
-                    )}
-
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    Giao dịch
-                  </p>
-
-                  <p className="mt-1 font-semibold text-slate-800">
-
-                    {selected.totalTrades ?? 0}
-
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    Win Rate
-                  </p>
-
-                  <p className="mt-1 font-semibold text-slate-800">
-
-                    {Number(
-                      selected.winRate ?? 0
-                    ).toFixed(2)}
-
-                    %
-
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    Trạng thái
-                  </p>
-
-                  <p
-                    className={`mt-1 font-semibold ${
-                      selected.status === "01"
-                        ? "text-emerald-600"
-                        : "text-red-500"
-                    }`}
-                  >
-
-                    {selected.status === "01"
-                      ? "Đang hoạt động"
-                      : "Bị khóa"}
-
-                  </p>
-
-                </div>
-
-
-                <div className="rounded-lg bg-slate-50 p-4">
-
-                  <p className="text-xs text-slate-400">
-                    License
-                  </p>
-
-                  <p
-                    className={`mt-1 font-semibold ${
-                      Number(
-                        selected.remainingDays ?? 0
-                      ) <= 7
-                        ? "text-red-500"
-                        : Number(
-                            selected.remainingDays ?? 0
-                          ) <= 30
-                          ? "text-amber-500"
-                          : "text-emerald-600"
-                    }`}
-                  >
-
-                    {Number(
-                      selected.remainingDays ?? 0
-                    ) > 0
-                      ? `Còn ${selected.remainingDays} ngày`
-                      : "Đã hết hạn"}
-
-                  </p>
-
-                </div>
-
-              </div>
-
-
-              <button
-                type="button"
-                onClick={() =>
-                  setSelected(null)
-                }
-                className="mt-5 w-full rounded-lg bg-slate-900 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-line p-4 xl:flex-row xl:items-center xl:justify-between">
+          <Segmented
+            value={status}
+            options={STATUS_TABS}
+            onChange={(v) => {
+              setStatus(v);
+              load(0, size, keyword, v, roleType);
+            }}
+          />
+          <form onSubmit={search} className="flex flex-col gap-2 sm:flex-row">
+            {admin && (
+              <Select
+                value={roleType}
+                onChange={(e) => {
+                  setRoleType(e.target.value);
+                  load(0, size, keyword, status, e.target.value);
+                }}
+                className="sm:w-40"
               >
+                {ROLE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+            )}
+            <Input
+              icon={<Search size={16} />}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Số tài khoản hoặc họ tên..."
+              wrapperClassName="sm:w-72"
+            />
+            <Button type="submit" variant="primary" disabled={loading}>
+              Tìm kiếm
+            </Button>
+          </form>
+        </div>
 
-                Đóng
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1040px] text-left text-sm">
+            <thead className="bg-elev/60 text-[11px] uppercase tracking-wider text-subtle">
+              <tr>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Tài khoản</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Bot</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right font-medium">Số dư</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right font-medium">Lợi nhuận</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Hiệu suất</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">License</th>
+                <th className="whitespace-nowrap px-4 py-3 font-medium">Trạng thái</th>
+                <th className="whitespace-nowrap px-4 py-3 text-right font-medium">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {loading ? (
+                <SkeletonRows rows={Math.min(size, 8)} cols={8} />
+              ) : accounts.length === 0 ? (
+                <tr>
+                  <td colSpan={8}>
+                    <EmptyState
+                      title="Không tìm thấy tài khoản"
+                      description="Thử đổi từ khóa hoặc bộ lọc trạng thái."
+                      action={
+                        <Button variant="gold" size="sm" icon={<UserPlus size={14} />} onClick={() => open("create", null)}>
+                          Thêm tài khoản
+                        </Button>
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : (
+                accounts.map((a) => {
+                  const locked = a.status === "00";
+                  const wr = Number(a.winRate ?? 0);
+                  return (
+                    <tr key={a.account} className="group transition hover:bg-elev/50">
+                      <td className="px-4 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-elev text-[11px] font-bold text-gold ring-1 ring-line">
+                            {(a.fullname || a.account).trim().charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="num font-semibold text-fg">{a.account}</p>
+                            <p className="truncate text-xs text-muted">{a.fullname || "—"}</p>
+                            <div className="mt-1 flex gap-1">
+                              {a.role && (
+                                <Badge tone={a.role === "02" ? "info" : "gold"} className="px-2 py-0.5 text-[10px]">
+                                  {ROLE_LABEL[a.role] || a.role}
+                                </Badge>
+                              )}
+                              {a.typeMoney && (
+                                <Badge tone="neutral" className="px-2 py-0.5 text-[10px]">
+                                  {a.typeMoney}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <BotCell status={a.botStatus} online={a.onlineDate} />
+                      </td>
+                      <td className="num px-4 py-4 text-right font-semibold text-fg">{money(a.balance)}</td>
+                      <td className="px-4 py-4 text-right">
+                        <Money value={a.profit} />
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="w-32">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="num font-semibold text-fg">{percent(wr, 2)}</span>
+                            <span className="num text-subtle">
+                              {num(a.winTrades ?? 0, 0)}/{num(a.totalTrades ?? 0, 0)} lệnh
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-down/25">
+                            <div className="h-full rounded-full bg-up" style={{ width: `${Math.min(100, wr)}%` }} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <LicenseCell days={Number(a.remainingDays ?? 0)} expired={a.licenseExpiredDt} />
+                      </td>
+                      <td className="px-4 py-4">
+                        <Badge tone={locked ? "down" : "up"} dot>
+                          {locked ? "Bị khóa" : "Hoạt động"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-1">
+                          <IconAction title="Chi tiết" onClick={() => open("detail", a)}>
+                            <Eye size={16} />
+                          </IconAction>
+                          <IconAction title="Sửa thông tin" onClick={() => open("edit", a)}>
+                            <Pencil size={16} />
+                          </IconAction>
+                          <IconAction title="Gia hạn license" onClick={() => open("renew", a)} tone="gold">
+                            <CalendarClock size={16} />
+                          </IconAction>
+                          <IconAction
+                            title={locked ? "Mở khóa" : "Khóa tài khoản"}
+                            onClick={() => open("block", a)}
+                            tone={locked ? "up" : "down"}
+                          >
+                            {locked ? <ShieldCheck size={16} /> : <ShieldBan size={16} />}
+                          </IconAction>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
-              </button>
+        <Pagination
+          page={page}
+          size={size}
+          totalPages={totalPages}
+          totalElements={totalElements}
+          unit="tài khoản"
+          disabled={loading}
+          onPage={(p) => load(p, size, keyword, status, roleType)}
+          onSize={(s) => load(0, s, keyword, status, roleType)}
+        />
+      </Card>
 
+      {/* ================= DETAIL ================= */}
+      <Modal
+        open={modal === "detail" && !!selected}
+        onClose={close}
+        title={`Tài khoản ${selected?.account ?? ""}`}
+        subtitle={selected?.fullname || undefined}
+        icon={<Users size={18} />}
+        footer={
+          <>
+            <Button variant="secondary" onClick={close}>
+              Đóng
+            </Button>
+            {selected && (
+              <Link href={`/reports/accounts/${encodeURIComponent(selected.account)}`}>
+                <Button variant="gold" icon={<BarChart3 size={15} />}>
+                  Xem giao dịch
+                </Button>
+              </Link>
+            )}
+          </>
+        }
+      >
+        {selected && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Info label="Số dư" value={<span className="num">{money(selected.balance)}</span>} />
+              <Info label="Lợi nhuận" value={<Money value={selected.profit} />} />
+              <Info label="Giao dịch" value={<span className="num">{num(selected.totalTrades, 0)}</span>} />
+              <Info label="Win rate" value={<span className="num">{percent(selected.winRate, 2)}</span>} />
             </div>
-
+            <div className="divide-y divide-line rounded-xl border border-line">
+              <Row k="Loại tài khoản" v={ROLE_LABEL[selected.role || ""] || "—"} />
+              <Row k="Loại tiền" v={selected.typeMoney || "—"} />
+              <Row k="Trạng thái" v={selected.status === "00" ? "Bị khóa" : "Đang hoạt động"} />
+              <Row k="Bot" v={`${selected.botStatus === "ONLINE" ? "Online" : "Offline"} · ${timeAgo(selected.onlineDate)}`} />
+              <Row k="License" v={`${Number(selected.remainingDays) > 0 ? `Còn ${selected.remainingDays} ngày` : "Đã hết hạn"} · ${dateVN(selected.licenseExpiredDt)}`} />
+              <Row k="Số điện thoại" v={selected.phone || "—"} />
+              <Row k="Email" v={selected.email || "—"} />
+              <Row k="Người tạo" v={selected.createdBy || "—"} />
+              <Row k="Ngày tạo" v={dateTimeVN(selected.createdDt)} />
+            </div>
           </div>
-
         )}
+      </Modal>
 
+      {/* ================= BLOCK / UNBLOCK ================= */}
+      <Modal
+        open={modal === "block" && !!selected}
+        onClose={close}
+        locked={busy}
+        size="sm"
+        title={selected?.status === "00" ? "Mở khóa tài khoản" : "Khóa tài khoản"}
+        icon={selected?.status === "00" ? <ShieldCheck size={18} /> : <ShieldBan size={18} />}
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={busy}>
+              Hủy
+            </Button>
+            {selected?.status === "00" ? (
+              <Button
+                variant="success"
+                loading={busy}
+                onClick={() =>
+                  run(() => unblockAccount(selected.account), `Đã mở khóa ${selected.account}`, "Không thể mở khóa tài khoản.")
+                }
+              >
+                Mở khóa
+              </Button>
+            ) : (
+              <Button
+                variant="danger"
+                loading={busy}
+                onClick={() =>
+                  selected &&
+                  run(() => blockAccount(selected.account), `Đã khóa ${selected.account}`, "Không thể khóa tài khoản.")
+                }
+              >
+                Khóa tài khoản
+              </Button>
+            )}
+          </>
+        }
+      >
+        <p className="text-sm leading-6 text-muted">
+          {selected?.status === "00" ? (
+            <>
+              Tài khoản <b className="num text-fg">{selected?.account}</b> đang bị khóa. Mở khóa để bot đăng nhập và giao dịch trở lại.
+            </>
+          ) : (
+            <>
+              Tài khoản <b className="num text-fg">{selected?.account}</b> sẽ bị khóa. Bot trên VPS sẽ{" "}
+              <b className="text-down">không đăng nhập được</b> cho tới khi mở khóa.
+            </>
+          )}
+        </p>
+      </Modal>
 
-      {/* ===================================================
-          BLOCK / UNBLOCK MODAL
-      =================================================== */}
-
-      {modal === "block" &&
-        selected && (
-
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-            onClick={() => {
-
-              if (!actionLoading) {
-
-                setModal(null);
-
-              }
-
-            }}
-          >
-
-            <div
-              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-              onClick={(event) =>
-                event.stopPropagation()
+      {/* ================= RENEW ================= */}
+      <Modal
+        open={modal === "renew" && !!selected}
+        onClose={close}
+        locked={busy}
+        title="Gia hạn license"
+        subtitle={`Tài khoản ${selected?.account ?? ""}`}
+        icon={<CalendarClock size={18} />}
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={busy}>
+              Hủy
+            </Button>
+            <Button
+              variant="gold"
+              loading={busy}
+              disabled={!Number.isFinite(renewDays) || renewDays <= 0}
+              onClick={() =>
+                selected &&
+                run(
+                  () => renewAccount(selected.account, renewDays),
+                  `Đã gia hạn ${renewDays} ngày cho ${selected.account}`,
+                  "Không thể gia hạn tài khoản."
+                )
               }
             >
-
-              <div className="flex items-center justify-between">
-
-                <h3 className="text-lg font-semibold text-slate-900">
-
-                  {selected.status === "00"
-                    ? "Mở khóa tài khoản"
-                    : "Khóa tài khoản"}
-
-                </h3>
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setModal(null)
-                  }
-                  disabled={actionLoading}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
-                >
-
-                  <X
-                    size={18}
-                  />
-
-                </button>
-
-              </div>
-
-
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-
-                {selected.status === "00"
-
-                  ? `Tài khoản ${selected.account} đang bị khóa. Anh có muốn mở khóa tài khoản này không?`
-
-                  : `Tài khoản ${selected.account} sẽ bị khóa và không thể tiếp tục sử dụng hệ thống.`}
-
-              </p>
-
-
-              <div className="mt-6 flex justify-end gap-2">
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setModal(null)
-                  }
-                  disabled={actionLoading}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-
-                  Hủy
-
-                </button>
-
-
-                <button
-                  type="button"
-                  onClick={updateStatus}
-                  disabled={actionLoading}
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
-                    selected.status === "00"
-                      ? "bg-emerald-600 hover:bg-emerald-700"
-                      : "bg-red-600 hover:bg-red-700"
-                  }`}
-                >
-
-                  {actionLoading && (
-
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
-
-                  )}
-
-
-                  {selected.status === "00"
-                    ? "Mở khóa"
-                    : "Khóa tài khoản"}
-
-                </button>
-
-              </div>
-
+              Gia hạn {Number.isFinite(renewDays) && renewDays > 0 ? `${renewDays} ngày` : ""}
+            </Button>
+          </>
+        }
+      >
+        {selected && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <Info
+                label="Hết hạn hiện tại"
+                value={selected.licenseExpiredDt ? dateVN(selected.licenseExpiredDt) : "Chưa có"}
+                sub={Number(selected.remainingDays) > 0 ? `Còn ${selected.remainingDays} ngày` : "Đã hết hạn"}
+              />
+              <Info
+                label="Sau khi gia hạn"
+                value={<span className="text-gold-gradient">{renewPreview ? dateVN(renewPreview) : "—"}</span>}
+                sub="Tài khoản sẽ được mở khóa"
+              />
             </div>
-
+            <Field label="Số ngày gia hạn">
+              <Input type="number" min={1} max={3650} value={days} onChange={(e) => setDays(e.target.value)} />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              {RENEW_PRESETS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDays(String(d))}
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                    days === String(d) ? "border-gold/50 bg-gold-soft text-gold" : "border-line text-muted hover:bg-elev"
+                  )}
+                >
+                  {d === 365 ? "1 năm" : `${d} ngày`}
+                </button>
+              ))}
+            </div>
           </div>
-
         )}
+      </Modal>
 
-
-      {/* ===================================================
-          RENEW MODAL
-      =================================================== */}
-
-      {modal === "renew" &&
-        selected && (
-
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"
-            onClick={() => {
-
-              if (!actionLoading) {
-
-                setModal(null);
-
-              }
-
-            }}
-          >
-
-            <div
-              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
-              onClick={(event) =>
-                event.stopPropagation()
-              }
+      {/* ================= CREATE / EDIT ================= */}
+      <Modal
+        open={modal === "create" || (modal === "edit" && !!selected)}
+        onClose={close}
+        locked={busy}
+        size="lg"
+        title={modal === "create" ? "Thêm tài khoản MT5" : `Sửa tài khoản ${selected?.account ?? ""}`}
+        subtitle={modal === "create" ? "Bot đăng nhập bằng số tài khoản MT5, không cần mật khẩu." : undefined}
+        icon={modal === "create" ? <UserPlus size={18} /> : <Pencil size={18} />}
+        footer={
+          <>
+            <Button variant="secondary" onClick={close} disabled={busy}>
+              Hủy
+            </Button>
+            <Button
+              variant="gold"
+              loading={busy}
+              onClick={() => {
+                if (modal === "create") {
+                  if (!form.username?.trim()) {
+                    toast.error("Vui lòng nhập số tài khoản MT5.");
+                    return;
+                  }
+                  run(() => createAccount(form), `Đã tạo tài khoản ${form.username}`, "Không thể tạo tài khoản.");
+                } else if (selected) {
+                  run(() => updateAccount(selected.account, form), "Đã lưu thay đổi", "Không thể cập nhật tài khoản.");
+                }
+              }}
             >
-
-              <div className="flex items-center justify-between">
-
-                <h3 className="text-lg font-semibold text-slate-900">
-
-                  Gia hạn tài khoản
-
-                </h3>
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setModal(null)
-                  }
-                  disabled={actionLoading}
-                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 disabled:opacity-50"
-                >
-
-                  <X
-                    size={18}
-                  />
-
-                </button>
-
-              </div>
-
-
-              <p className="mt-3 text-sm text-slate-500">
-
-                Gia hạn license cho tài khoản{" "}
-
-                <span className="font-semibold text-slate-700">
-
-                  {selected.account}
-
-                </span>
-
-              </p>
-
-
-              {/* CURRENT LICENSE */}
-
-              <div className="mt-5 rounded-lg bg-slate-50 p-4">
-
-                <p className="text-xs text-slate-400">
-
-                  Thời hạn hiện tại
-
-                </p>
-
-
-                <p className="mt-1 font-semibold text-slate-800">
-
-                  {selected.licenseExpiredDt
-
-                    ? new Date(
-                        selected.licenseExpiredDt
-                      ).toLocaleDateString(
-                        "vi-VN"
-                      )
-
-                    : "Chưa có thời hạn"}
-
-                </p>
-
-
-                <p className="mt-1 text-xs text-slate-400">
-
-                  {Number(
-                    selected.remainingDays ?? 0
-                  ) > 0
-
-                    ? `Còn ${selected.remainingDays} ngày`
-
-                    : "Đã hết hạn"}
-
-                </p>
-
-              </div>
-
-
-              {/* DAYS */}
-
-              <div className="mt-5">
-
-                <label className="text-sm font-medium text-slate-700">
-
-                  Số ngày gia hạn
-
-                </label>
-
-
-                <input
-                  type="number"
-                  min={1}
-                  value={days}
-                  onChange={(event) =>
-                    setDays(
-                      event.target.value
-                    )
-                  }
-                  className="mt-2 h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                />
-
-
-                <div className="mt-2 flex gap-2">
-
-                  {[7, 30, 90, 180, 365].map(
-                    (value) => (
-
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() =>
-                          setDays(
-                            String(value)
-                          )
-                        }
-                        className={`rounded-lg border px-3 py-1.5 text-xs ${
-                          days === String(value)
-                            ? "border-blue-500 bg-blue-50 text-blue-600"
-                            : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                        }`}
-                      >
-
-                        {value} ngày
-
-                      </button>
-
-                    )
-                  )}
-
-                </div>
-
-              </div>
-
-
-              {/* ACTION */}
-
-              <div className="mt-6 flex justify-end gap-2">
-
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setModal(null)
-                  }
-                  disabled={actionLoading}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                >
-
-                  Hủy
-
-                </button>
-
-
-                <button
-                  type="button"
-                  onClick={handleRenew}
-                  disabled={
-                    actionLoading ||
-                    Number(days) <= 0
-                  }
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-
-                  {actionLoading && (
-
-                    <Loader2
-                      size={15}
-                      className="animate-spin"
-                    />
-
-                  )}
-
-
-                  Gia hạn
-
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        )}
-
+              {modal === "create" ? "Tạo tài khoản" : "Lưu thay đổi"}
+            </Button>
+          </>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          {modal === "create" && (
+            <Field label="Số tài khoản MT5 *">
+              <Input
+                value={form.username ?? ""}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+                placeholder="VD: 123456789"
+                autoFocus
+              />
+            </Field>
+          )}
+          <Field label="Họ và tên">
+            <Input value={form.fullname ?? ""} onChange={(e) => setForm({ ...form, fullname: e.target.value })} placeholder="Nguyễn Văn A" />
+          </Field>
+          {(admin || modal === "create") && (
+            <Field label="Loại tài khoản" hint={!admin ? "Sale chỉ tạo được tài khoản khách hàng" : undefined}>
+              <Select value={form.role ?? "03"} disabled={!admin} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+                <option value="03">Khách hàng</option>
+                <option value="02">Tự doanh</option>
+                {admin && modal === "create" && <option value="01">Sale (đăng nhập web)</option>}
+              </Select>
+            </Field>
+          )}
+          <Field label="Loại tiền" hint="USD sẽ quy đổi x100 sang USC trong báo cáo">
+            <Select value={form.typeMoney ?? "USC"} onChange={(e) => setForm({ ...form, typeMoney: e.target.value })}>
+              <option value="USC">USC (tài khoản cent)</option>
+              <option value="USD">USD</option>
+            </Select>
+          </Field>
+          {modal === "create" && (
+            <Field label="License ban đầu (ngày)">
+              <Input
+                type="number"
+                min={0}
+                max={3650}
+                value={form.licenseDays ?? 0}
+                onChange={(e) => setForm({ ...form, licenseDays: Number(e.target.value) })}
+              />
+            </Field>
+          )}
+          <Field label="Số điện thoại">
+            <Input value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="09xx xxx xxx" />
+          </Field>
+          <Field label="Email">
+            <Input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@domain.com" />
+          </Field>
+          {(form.role === "01" || modal === "edit") && (
+            <Field
+              label={form.role === "01" ? "Mật khẩu đăng nhập web *" : "Đặt lại mật khẩu"}
+              hint={modal === "edit" ? "Để trống nếu không đổi" : "Tối thiểu 6 ký tự"}
+            >
+              <Input type="password" value={form.password ?? ""} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            </Field>
+          )}
+        </div>
+      </Modal>
     </div>
-
   );
+}
 
+function IconAction({
+  title,
+  onClick,
+  children,
+  tone,
+}: {
+  title: string;
+  onClick: () => void;
+  children: React.ReactNode;
+  tone?: "gold" | "up" | "down";
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={cn(
+        "flex h-8 w-8 items-center justify-center rounded-lg text-subtle transition hover:bg-elev",
+        tone === "gold" && "hover:text-gold",
+        tone === "up" && "hover:text-up",
+        tone === "down" && "hover:text-down",
+        !tone && "hover:text-fg"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Info({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }) {
+  return (
+    <div className="rounded-xl bg-elev p-4">
+      <p className="text-[11px] text-subtle">{label}</p>
+      <p className="mt-1 text-[15px] font-semibold text-fg">{value}</p>
+      {sub && <p className="mt-0.5 text-[11px] text-muted">{sub}</p>}
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+      <span className="text-muted">{k}</span>
+      <span className="text-right font-medium text-fg">{v}</span>
+    </div>
+  );
 }

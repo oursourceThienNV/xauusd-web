@@ -1,87 +1,14 @@
 import api from "@/lib/axios";
+import type { DashboardResponse, DashboardStatistics } from "@/types/api";
 
-// =========================================================
-// BEST CONFIGURATION
-// =========================================================
-
-export interface BestConfigurationResponse {
-  strategy: string | null;
-
-  multiLot: boolean | null;
-
-  maFast: number | null;
-
-  maSlow: number | null;
-
-  maTrendValue: number | null;
-
-  sideway: boolean | null;
-
-  fomo: boolean | null;
-
-  totalTrades: number;
-
-  totalProfit: number;
-
-  winRate: number;
-}
-
-
-// =========================================================
-// DASHBOARD RESPONSE
-// =========================================================
-
-export interface DashboardResponse {
-  // ACCOUNT
-
-  totalAccounts: number;
-
-  activeAccounts: number;
-
-  blockedAccounts: number;
-
-  expiredAccounts: number;
-
-
-  // FINANCIAL
-
-  totalBalance: number;
-
-  totalProfit: number;
-
-  totalTrades: number;
-
-
-  // BEST CONFIGURATION
-
-  bestConfiguration:
-    | BestConfigurationResponse
-    | null;
-}
-
-
-// =========================================================
-// GET DASHBOARD
-// =========================================================
+export type { BestConfigurationResponse, DashboardResponse, DashboardStatistics } from "@/types/api";
 
 export async function getDashboard(): Promise<DashboardResponse> {
+  const response = await api.get<DashboardResponse>("dashboard");
+  return response.data;
+}
 
-  console.log(
-    "GET DASHBOARD API"
-  );
-
-
-  const response =
-    await api.get<DashboardResponse>(
-      "/dashboard"
-    );
-
-
-  console.log(
-    "GET DASHBOARD RESPONSE:",
-    response.data
-  );
-
-
+export async function getDashboardStatistics(days = 30): Promise<DashboardStatistics> {
+  const response = await api.get<DashboardStatistics>("dashboard/statistics", { params: { days } });
   return response.data;
 }

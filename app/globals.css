@@ -1,28 +1,245 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* =====================================================================
+   DESIGN TOKENS – XAUUSD Gold Edition
+   ===================================================================== */
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --elev: #f7f8fa;
+  --line: #e7e9ee;
+  --line-strong: #d7dbe3;
+  --fg: #0e1320;
+  --muted: #5d6679;
+  --subtle: #8b93a5;
+  --gold: #b07d14;
+  --gold-2: #d8a63a;
+  --gold-soft: #fbf3df;
+  --up: #059669;
+  --up-soft: #e7f7f0;
+  --down: #e11d48;
+  --down-soft: #fdecef;
+  --info: #2563eb;
+  --info-soft: #eaf1ff;
+  --warn: #d97706;
+  --warn-soft: #fff4e2;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 4px 16px rgba(16, 24, 40, 0.05);
+  --sidebar: #0a0d14;
+  --sidebar-fg: #c9cfdb;
+  color-scheme: light;
 }
 
-* {
-  box-sizing: border-box;
+.dark {
+  --bg: #07090e;
+  --panel: #0c1018;
+  --card: #10151f;
+  --elev: #151b27;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.12);
+  --fg: #e9edf4;
+  --muted: #98a1b3;
+  --subtle: #697286;
+  --gold: #e5b555;
+  --gold-2: #f6d78e;
+  --gold-soft: rgba(229, 181, 85, 0.1);
+  --up: #34d399;
+  --up-soft: rgba(52, 211, 153, 0.1);
+  --down: #fb7185;
+  --down-soft: rgba(251, 113, 133, 0.1);
+  --info: #60a5fa;
+  --info-soft: rgba(96, 165, 250, 0.1);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.1);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px rgba(0, 0, 0, 0.35);
+  --sidebar: #06080c;
+  --sidebar-fg: #c9cfdb;
+  color-scheme: dark;
 }
 
-html,
-body {
-  margin: 0;
-  min-height: 100%;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-elev: var(--elev);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-gold: var(--gold);
+  --color-gold-2: var(--gold-2);
+  --color-gold-soft: var(--gold-soft);
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-sidebar: var(--sidebar);
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-num), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --shadow-card: var(--shadow);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* =====================================================================
+   BASE  (đặt trong @layer base để class Tailwind luôn ghi đè được)
+   ===================================================================== */
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--gold) 30%, transparent);
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  .dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 999px;
+  }
 }
 
-button,
-input,
-select {
-  font: inherit;
+/* =====================================================================
+   COMPONENTS
+   ===================================================================== */
+
+@layer components {
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .gold-ring {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--gold) 35%, transparent),
+      0 8px 30px color-mix(in oklab, var(--gold) 12%, transparent);
+  }
+
+  .grid-lines {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--elev) 0%, var(--line) 50%, var(--elev) 100%);
+    background-size: 800px 100%;
+    animation: shimmer 1.4s infinite linear;
+    border-radius: 8px;
+  }
 }
+
+/* =====================================================================
+   UTILITIES
+   ===================================================================== */
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@utility text-gold-gradient {
+  background: linear-gradient(135deg, var(--gold-2) 0%, var(--gold) 55%, #9a6b0e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-gold-gradient {
+  background: linear-gradient(135deg, #f6d78e 0%, #e2ad46 45%, #b9861c 100%);
+}
+
+@utility fade-up {
+  animation: fade-up 0.35s ease-out both;
+}
+
+@utility pulse-dot {
+  animation: pulse-dot 1.8s infinite;
+}
+
+/* dùng kèm pathLength="1" */
+@utility draw-line {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  animation: draw-line 1.4s ease-out both;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--up) 60%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
